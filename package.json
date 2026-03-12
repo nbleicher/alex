@@ -1,0 +1,10 @@
+{
+  "name": "alex",
+  "private": true,
+  "description": "Spend & Profit Tracker – full stack",
+  "scripts": {
+    "dev:api": "cd backend && npm run dev",
+    "dev:web": "npx serve frontend -p 5173",
+    "setup": "cd backend && npm install"
+  }
+}

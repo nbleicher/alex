@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="api-base" content="http://localhost:3000" />
+  <title>alex – Spend & Profit</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script>window.API_BASE_URL = document.querySelector('meta[name="api-base"]')?.getAttribute('content') || '';</script>
+</head>
+<body>
+  <header class="header">
+    <h1 class="logo">alex</h1>
+    <a href="#" class="manage-link" id="manageProducts">Manage products</a>
+  </header>
+
+  <main class="main two-col">
+    <section class="panel spend-panel">
+      <h2>Spend</h2>
+      <div class="table-wrap">
+        <table class="data-table" id="spendTable">
+          <thead>
+            <tr>
+              <th>Cat.No</th>
+              <th>Product</th>
+              <th>Spec</th>
+              <th>Cost</th>
+              <th>Qty</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="spendBody"></tbody>
+        </table>
+      </div>
+      <p class="total-line"><strong>Total spend:</strong> <span id="totalSpend">$0</span></p>
+    </section>
+
+    <section class="panel right-panel">
+      <section class="sales-section">
+        <h2>Sales</h2>
+        <div class="table-wrap">
+          <table class="data-table" id="salesTable">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty sold</th>
+                <th>Sell price</th>
+                <th>Revenue</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="salesBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-add" id="addSale">+ Add sale</button>
+        <p class="total-line"><strong>Total revenue:</strong> <span id="totalRevenue">$0</span></p>
+      </section>
+    </section>
+
+    <section class="panel summary-panel">
+      <h2>Net profit</h2>
+      <div class="summary-box" id="summaryBox">
+        <div class="summary-row"><span>Total spend</span><span id="sumSpend">$0</span></div>
+        <div class="summary-row"><span>Total revenue</span><span id="sumRevenue">$0</span></div>
+        <div class="summary-row highlight"><span>Net profit</span><span id="netProfit">$0</span></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Manage products modal -->
+  <div class="modal" id="productsModal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Manage products</h2>
+        <button type="button" class="btn-close" id="closeProductsModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <button type="button" class="btn btn-primary" id="addProduct">+ Add product</button>
+        <button type="button" class="btn btn-small" id="seedData" title="Load PDF product list once">Seed PDF data</button>
+        <ul class="product-list" id="productList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit product modal -->
+  <div class="modal" id="productFormModal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="productFormTitle">Add product</h2>
+        <button type="button" class="btn-close" id="closeProductForm" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="productForm">
+          <input type="hidden" id="productId" />
+          <label>Product name <input type="text" id="productName" required /></label>
+          <fieldset class="specs-fieldset">
+            <legend>Specs</legend>
+            <div id="specsContainer"></div>
+            <button type="button" class="btn btn-small" id="addSpecRow">+ Spec</button>
+          </fieldset>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" class="btn" id="cancelProductForm">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add sale form (inline or modal) -->
+  <div class="modal" id="saleModal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add sale</h2>
+        <button type="button" class="btn-close" id="closeSaleModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="saleForm">
+          <label>Item <select id="saleItem" required></select></label>
+          <label>Qty sold (sub-items) <input type="number" id="saleQty" min="1" required /></label>
+          <label>Sell price (per sub-item) <input type="number" id="salePrice" step="0.01" min="0" required /></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add sale</button>
+            <button type="button" class="btn" id="cancelSale">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
