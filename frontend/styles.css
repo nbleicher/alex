@@ -181,9 +181,8 @@ body {
 
 .brand-image-wrap {
   text-align: center;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+  padding: 1.25rem 1rem;
+  background: var(--bg);
 }
 
 .brand-image {
