@@ -49,7 +49,7 @@ async function loadAll() {
     render();
   } catch (e) {
     console.error(e);
-    document.getElementById('spendBody').innerHTML = `<tr><td colspan="6" class="error">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
+    document.getElementById('spendBody').innerHTML = `<tr><td colspan="7" class="error">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -72,67 +72,40 @@ function getInventoryByProduct() {
 }
 
 function renderSpendTable() {
-  const invByProduct = getInventoryByProduct();
   const tbody = document.getElementById('spendBody');
+  const rows = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
   let totalSpend = 0;
-
-  const rows = state.products.map((product) => {
-    const inv = invByProduct[product.id];
-    const specId = inv?.product_spec_id;
-    const specs = product.specs || [];
-    const selectedSpec = specs.find((s) => s.id === specId) || specs[0];
-    const price = selectedSpec ? Number(selectedSpec.price) : 0;
-    const qty = inv?.quantity ?? 0;
-    const total = price * qty;
-    totalSpend += total;
-    return {
-      product,
-      selectedSpec,
-      specs,
-      price,
-      qty,
-      total,
-    };
+  rows.forEach((r) => {
+    totalSpend += (Number(r.price) || 0) * (r.quantity || 0);
   });
 
   tbody.innerHTML = rows
     .map(
       (r) => `
-    <tr data-product-id="${r.product.id}">
-      <td>${r.selectedSpec?.cat_no ?? '-'}</td>
-      <td>${escapeHtml(r.product.name)}</td>
-      <td>
-        <select data-product-id="${r.product.id}" class="spec-select" data-spec-id>
-          ${r.specs.map((s) => `<option value="${s.id}" ${s.id === r.selectedSpec?.id ? 'selected' : ''}>${escapeHtml(s.spec)}</option>`).join('')}
-        </select>
-      </td>
+    <tr>
+      <td>${escapeHtml(r.cat_no || '-')}</td>
+      <td>${escapeHtml(r.product_name || '')}</td>
+      <td>${escapeHtml(r.spec || '')}</td>
       <td class="num">${formatMoney(r.price)}</td>
-      <td><input type="number" min="0" value="${r.qty}" data-product-id="${r.product.id}" class="qty-input" /></td>
-      <td class="num">${formatMoney(r.total)}</td>
+      <td class="num">${r.quantity}</td>
+      <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
+      <td><button type="button" class="btn btn-small btn-delete" data-product-id="${r.product_id}" data-spec-id="${r.product_spec_id}">Delete</button></td>
     </tr>`
     )
     .join('');
 
   document.getElementById('totalSpend').textContent = formatMoney(totalSpend);
 
-  tbody.querySelectorAll('.spec-select').forEach((sel) => {
-    sel.addEventListener('change', () => onSpendSpecChange(sel.dataset.productId, sel.value));
-  });
-  tbody.querySelectorAll('.qty-input').forEach((inp) => {
-    inp.addEventListener('change', () => onSpendQtyChange(inp.dataset.productId, inp.value));
+  tbody.querySelectorAll('button[data-product-id]').forEach((btn) => {
+    btn.addEventListener('click', () => deletePurchase(btn.dataset.productId, btn.dataset.specId));
   });
 }
 
-async function onSpendSpecChange(productId, productSpecId) {
-  const product = state.products.find((p) => p.id === productId);
-  const spec = product?.specs?.find((s) => s.id === productSpecId);
-  if (!spec) return;
-  const inv = state.inventory.find((i) => i.product_id === productId);
-  const qty = inv?.quantity ?? 0;
+async function deletePurchase(productId, productSpecId) {
   try {
     await api('/inventory', {
       method: 'PUT',
-      body: JSON.stringify({ product_id: productId, product_spec_id: productSpecId, quantity: qty }),
+      body: JSON.stringify({ product_id: productId, product_spec_id: productSpecId, quantity: 0 }),
     });
     await loadAll();
   } catch (e) {
@@ -140,22 +113,56 @@ async function onSpendSpecChange(productId, productSpecId) {
   }
 }
 
-async function onSpendQtyChange(productId, value) {
-  const qty = Math.max(0, parseInt(value, 10) || 0);
-  const inv = state.inventory.find((i) => i.product_id === productId);
+function openPurchaseModal() {
+  const productSelect = document.getElementById('purchaseProduct');
+  const specSelect = document.getElementById('purchaseSpec');
+  productSelect.innerHTML = '<option value="">Select product</option>' + (state.products || []).map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  specSelect.innerHTML = '<option value="">Select spec</option>';
+  document.getElementById('purchaseForm').reset();
+  document.getElementById('purchaseModal').setAttribute('aria-hidden', 'false');
+}
+
+function updatePurchaseSpecDropdown() {
+  const productId = document.getElementById('purchaseProduct').value;
+  const specSelect = document.getElementById('purchaseSpec');
+  specSelect.innerHTML = '<option value="">Select spec</option>';
+  if (!productId) return;
   const product = state.products.find((p) => p.id === productId);
-  const specId = inv?.product_spec_id || product?.specs?.[0]?.id;
-  if (!specId) return;
+  if (product && product.specs) {
+    product.specs.forEach((s) => {
+      specSelect.appendChild(new Option(`${s.spec} — ${formatMoney(s.price)}`, s.id));
+    });
+  }
+}
+
+function closePurchaseModal() {
+  document.getElementById('purchaseModal').setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('addPurchase').addEventListener('click', openPurchaseModal);
+document.getElementById('closePurchaseModal').addEventListener('click', closePurchaseModal);
+document.getElementById('cancelPurchase').addEventListener('click', closePurchaseModal);
+document.getElementById('purchaseProduct').addEventListener('change', updatePurchaseSpecDropdown);
+
+document.getElementById('purchaseForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const product_id = document.getElementById('purchaseProduct').value;
+  const product_spec_id = document.getElementById('purchaseSpec').value;
+  const addQty = Math.max(0, parseInt(document.getElementById('purchaseQty').value, 10) || 0);
+  if (!product_id || !product_spec_id) return;
+  const existing = state.inventory.find((i) => i.product_id === product_id);
+  const quantity = existing && existing.product_spec_id === product_spec_id ? (existing.quantity || 0) + addQty : addQty;
   try {
     await api('/inventory', {
       method: 'PUT',
-      body: JSON.stringify({ product_id: productId, product_spec_id: specId, quantity: qty }),
+      body: JSON.stringify({ product_id, product_spec_id, quantity }),
     });
+    closePurchaseModal();
     await loadAll();
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    alert(err.message);
   }
-}
+});
 
 function renderSalesTable() {
   const tbody = document.getElementById('salesBody');

@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>alex – Spend & Profit (preview)</title>
+  <title>A Roids – Spend & Profit (preview)</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="header">
-    <h1 class="logo">alex</h1>
+    <h1 class="logo">A Roids</h1>
     <a href="#" class="manage-link" id="manageProducts">Manage products</a>
   </header>
 
@@ -25,11 +25,13 @@
               <th>Cost</th>
               <th>Qty</th>
               <th>Total</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="spendBody"></tbody>
         </table>
       </div>
+      <button type="button" class="btn btn-add" id="addPurchase">+ Add purchase</button>
       <p class="total-line"><strong>Total spend:</strong> <span id="totalSpend">$0</span></p>
     </section>
 
@@ -79,7 +81,7 @@
   </div>
 
   <div class="modal" id="productFormModal" aria-hidden="true">
-    <div class="modal-content">
+    <div class="modal-content modal-wide">
       <div class="modal-header">
         <h2 id="productFormTitle">Add product</h2>
         <button type="button" class="btn-close" id="closeProductForm" aria-label="Close">&times;</button>
@@ -96,6 +98,26 @@
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Save</button>
             <button type="button" class="btn" id="cancelProductForm">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="purchaseModal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add purchase</h2>
+        <button type="button" class="btn-close" id="closePurchaseModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="purchaseForm">
+          <label>Product <select id="purchaseProduct" required></select></label>
+          <label>Spec <select id="purchaseSpec" required></select></label>
+          <label>Quantity (kits) <input type="number" id="purchaseQty" min="0" required /></label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Add purchase</button>
+            <button type="button" class="btn" id="cancelPurchase">Cancel</button>
           </div>
         </form>
       </div>

@@ -240,6 +240,10 @@ body {
   overflow: auto;
 }
 
+.modal-content.modal-wide {
+  max-width: min(92vw, 800px);
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -305,6 +309,7 @@ body {
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 0.5rem;
+  min-width: 0;
 }
 
 #specsContainer .spec-row input {
@@ -313,6 +318,7 @@ body {
   border: 1px solid var(--border);
   color: var(--text);
   font: inherit;
+  min-width: 0;
 }
 
 .form-actions {
