@@ -162,7 +162,8 @@ function renderSummary() {
   const el = document.getElementById('netProfit');
   el.textContent = formatMoney(s.netProfit);
   el.classList.remove('positive', 'negative');
-  el.classList.add(s.netProfit > 0 ? 'positive' : s.netProfit < 0 ? 'negative' : '');
+  if (s.netProfit > 0) el.classList.add('positive');
+  else if (s.netProfit < 0) el.classList.add('negative');
   el.style.color = '';
 }
 
