@@ -179,6 +179,19 @@ body {
   color: var(--danger);
 }
 
+.brand-image-wrap {
+  text-align: center;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.brand-image {
+  width: 80px;
+  height: auto;
+  opacity: 0.9;
+}
+
 .btn {
   background: var(--input-bg);
   border: 1px solid var(--border);
