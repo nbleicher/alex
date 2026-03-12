@@ -161,7 +161,9 @@ function renderSummary() {
   document.getElementById('sumRevenue').textContent = formatMoney(s.totalRevenue);
   const el = document.getElementById('netProfit');
   el.textContent = formatMoney(s.netProfit);
-  el.style.color = s.netProfit >= 0 ? 'var(--accent)' : 'var(--danger)';
+  el.classList.remove('positive', 'negative');
+  el.classList.add(s.netProfit > 0 ? 'positive' : s.netProfit < 0 ? 'negative' : '');
+  el.style.color = '';
 }
 
 function getInStockOptions() {

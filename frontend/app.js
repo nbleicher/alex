@@ -7,12 +7,24 @@ async function api(path, options = {}) {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options.headers },
   });
+  const text = await res.text();
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || res.statusText);
+    let errMsg = res.statusText;
+    try {
+      const err = JSON.parse(text);
+      if (err && err.error) errMsg = err.error;
+    } catch (_) {
+      if (text && text.length < 200) errMsg = text;
+      else if (text) errMsg = 'Server returned non-JSON (check API URL and CORS)';
+    }
+    throw new Error(errMsg);
   }
   if (res.status === 204) return null;
-  return res.json();
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch (_) {
+    throw new Error('Invalid JSON from server. Check API URL and that the backend is running.');
+  }
 }
 
 let state = {
@@ -37,7 +49,7 @@ async function loadAll() {
     render();
   } catch (e) {
     console.error(e);
-    document.getElementById('spendBody').innerHTML = `<tr><td colspan="6" class="error">Failed to load: ${e.message}</td></tr>`;
+    document.getElementById('spendBody').innerHTML = `<tr><td colspan="6" class="error">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
   }
 }
 
@@ -184,7 +196,9 @@ function renderSummary() {
   document.getElementById('sumRevenue').textContent = formatMoney(s.totalRevenue);
   const el = document.getElementById('netProfit');
   el.textContent = formatMoney(s.netProfit);
-  el.style.color = s.netProfit >= 0 ? 'var(--accent)' : 'var(--danger)';
+  el.classList.remove('positive', 'negative');
+  el.classList.add(s.netProfit > 0 ? 'positive' : s.netProfit < 0 ? 'negative' : '');
+  el.style.color = ''; // let CSS class control color
 }
 
 function escapeHtml(s) {

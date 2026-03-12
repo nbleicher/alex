@@ -26,6 +26,15 @@ app.use('/seed', seedRouter);
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
+app.use((_, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: err.message || 'Server error' });
+});
+
 app.listen(PORT, () => {
   console.log(`API listening on port ${PORT}`);
 });

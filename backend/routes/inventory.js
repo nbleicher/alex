@@ -8,19 +8,32 @@ inventoryRouter.get('/', async (req, res) => {
   try {
     const { data: rows, error } = await supabase
       .from('inventory')
-      .select(`
-        id,
-        product_id,
-        product_spec_id,
-        quantity,
-        products ( id, name ),
-        product_specs ( id, spec, price, cat_no )
-      `);
+      .select('id, product_id, product_spec_id, quantity');
     if (error) throw error;
 
-    const list = (rows || []).map((r) => {
-      const product = r.products || {};
-      const spec = r.product_specs || {};
+    if (!rows || rows.length === 0) {
+      return res.json([]);
+    }
+
+    const productIds = [...new Set(rows.map((r) => r.product_id))];
+    const specIds = [...new Set(rows.map((r) => r.product_spec_id))];
+
+    const { data: products } = await supabase
+      .from('products')
+      .select('id, name')
+      .in('id', productIds);
+    const { data: specs } = await supabase
+      .from('product_specs')
+      .select('id, product_id, spec, price, cat_no')
+      .in('id', specIds);
+
+    const productsBy = (products || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
+    const specsBy = (specs || []).reduce((acc, s) => { acc[s.id] = s; return acc; }, {});
+
+    const list = rows.map((r) => {
+      const product = productsBy[r.product_id] || {};
+      const spec = specsBy[r.product_spec_id] || {};
+      const price = spec.price ? Number(spec.price) : 0;
       return {
         id: r.id,
         product_id: r.product_id,
@@ -28,9 +41,9 @@ inventoryRouter.get('/', async (req, res) => {
         quantity: r.quantity,
         product_name: product.name,
         spec: spec.spec,
-        price: spec.price ? Number(spec.price) : 0,
+        price,
         cat_no: spec.cat_no,
-        total: (Number(spec.price) || 0) * (r.quantity || 0),
+        total: price * (r.quantity || 0),
       };
     });
     res.json(list);

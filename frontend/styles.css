@@ -166,10 +166,17 @@ body {
 .summary-row.highlight {
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--accent);
   margin-top: 0.5rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--border);
+}
+
+.summary-row.highlight .positive {
+  color: var(--accent);
+}
+
+.summary-row.highlight .negative {
+  color: var(--danger);
 }
 
 .btn {
