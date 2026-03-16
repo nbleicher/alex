@@ -31,9 +31,18 @@ let state = {
   products: [],
   inventory: [],
   sales: [],
-  summary: { totalSpend: 0, totalRevenue: 0, netProfit: 0, computedNetProfit: 0, netProfitOverridden: false, lastOverride: null },
+  summary: {
+    totalSpend: 0,
+    totalRevenue: 0,
+    netProfit: 0,
+    computedTotalSpend: 0,
+    computedTotalRevenue: 0,
+    computedNetProfit: 0,
+    overridesActive: false,
+    latestOverride: null,
+  },
   salesClientFilter: '',
-  isEditingNetProfit: false,
+  isEditingTotals: false,
 };
 
 async function loadAll() {
@@ -47,7 +56,17 @@ async function loadAll() {
     state.products = products || [];
     state.inventory = inventory || [];
     state.sales = sales || [];
-    state.summary = summary || { totalSpend: 0, totalRevenue: 0, netProfit: 0, computedNetProfit: 0 };
+    state.summary =
+      summary || {
+        totalSpend: 0,
+        totalRevenue: 0,
+        netProfit: 0,
+        computedTotalSpend: 0,
+        computedTotalRevenue: 0,
+        computedNetProfit: 0,
+        overridesActive: false,
+        latestOverride: null,
+      };
     render();
   } catch (e) {
     console.error(e);
@@ -362,28 +381,12 @@ function renderSummary() {
   document.getElementById('sumSpend').textContent = formatMoney(s.totalSpend);
   document.getElementById('sumRevenue').textContent = formatMoney(s.totalRevenue);
   const el = document.getElementById('netProfit');
-  const metaRow = document.getElementById('netProfitMetaRow');
-  const metaText = document.getElementById('netProfitMetaText');
-
   const netProfit = s.netProfit;
   el.textContent = formatMoney(netProfit);
   el.classList.remove('positive', 'negative');
   if (netProfit > 0) el.classList.add('positive');
   else if (netProfit < 0) el.classList.add('negative');
   el.style.color = '';
-
-  if (s.netProfitOverridden && s.lastOverride) {
-    if (metaRow && metaText) {
-      const d = s.lastOverride.created_at ? new Date(s.lastOverride.created_at) : null;
-      const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
-      const reason = s.lastOverride.reason || '';
-      metaRow.style.display = '';
-      metaText.textContent = `Edited permanently${when ? ` on ${when}` : ''}${reason ? ` – ${reason}` : ''}`;
-    }
-  } else if (metaRow && metaText) {
-    metaRow.style.display = 'none';
-    metaText.textContent = '';
-  }
 }
 
 function escapeHtml(s) {
@@ -638,44 +641,89 @@ if (salesClientFilterEl) {
   });
 }
 
-// Net profit editing (permanent, with history in backend)
-const editNetProfitBtn = document.getElementById('editNetProfit');
-const netProfitEditRow = document.getElementById('netProfitEditRow');
-const netProfitInput = document.getElementById('netProfitInput');
-const netProfitReason = document.getElementById('netProfitReason');
-const saveNetProfitBtn = document.getElementById('saveNetProfit');
-const cancelNetProfitBtn = document.getElementById('cancelNetProfit');
+// Total spend / revenue editing (permanent, with history in backend)
+const editTotalsBtn = document.getElementById('editTotals');
+const totalsEditRow = document.getElementById('totalsEditRow');
+const manualTotalSpendInput = document.getElementById('manualTotalSpendInput');
+const manualTotalRevenueInput = document.getElementById('manualTotalRevenueInput');
+const totalsReasonInput = document.getElementById('totalsReasonInput');
+const saveTotalsBtn = document.getElementById('saveTotals');
+const cancelTotalsBtn = document.getElementById('cancelTotals');
+const totalsMetaRow = document.getElementById('totalsMetaRow');
+const totalsMetaText = document.getElementById('totalsMetaText');
 
-if (editNetProfitBtn && netProfitEditRow && netProfitInput && netProfitReason && saveNetProfitBtn && cancelNetProfitBtn) {
-  editNetProfitBtn.addEventListener('click', () => {
-    state.isEditingNetProfit = true;
+if (
+  editTotalsBtn &&
+  totalsEditRow &&
+  manualTotalSpendInput &&
+  manualTotalRevenueInput &&
+  totalsReasonInput &&
+  saveTotalsBtn &&
+  cancelTotalsBtn &&
+  totalsMetaRow &&
+  totalsMetaText
+) {
+  editTotalsBtn.addEventListener('click', () => {
+    state.isEditingTotals = true;
     const s = state.summary || {};
-    const current = s.netProfit != null ? Number(s.netProfit) : 0;
-    netProfitInput.value = current;
-    netProfitReason.value = '';
-    netProfitEditRow.style.display = '';
+    manualTotalSpendInput.value =
+      s.totalSpend != null && s.totalSpend !== undefined ? String(Number(s.totalSpend).toFixed(2)) : '';
+    manualTotalRevenueInput.value =
+      s.totalRevenue != null && s.totalRevenue !== undefined ? String(Number(s.totalRevenue).toFixed(2)) : '';
+    totalsReasonInput.value = '';
+    totalsEditRow.style.display = '';
   });
 
-  cancelNetProfitBtn.addEventListener('click', () => {
-    state.isEditingNetProfit = false;
-    netProfitEditRow.style.display = 'none';
+  cancelTotalsBtn.addEventListener('click', () => {
+    state.isEditingTotals = false;
+    totalsEditRow.style.display = 'none';
   });
 
-  saveNetProfitBtn.addEventListener('click', async () => {
-    const value = parseFloat(netProfitInput.value);
-    if (Number.isNaN(value)) {
-      alert('Enter a valid number for net profit.');
+  saveTotalsBtn.addEventListener('click', async () => {
+    const spendVal = manualTotalSpendInput.value.trim();
+    const revenueVal = manualTotalRevenueInput.value.trim();
+    const reason = totalsReasonInput.value.trim();
+
+    if (!spendVal && !revenueVal) {
+      alert('Enter a value for total spend and/or total revenue.');
       return;
     }
-    const reason = netProfitReason.value.trim();
+
+    const payload = { reason: reason || undefined };
+    if (spendVal) {
+      const v = parseFloat(spendVal);
+      if (Number.isNaN(v)) {
+        alert('Enter a valid number for total spend.');
+        return;
+      }
+      payload.manual_total_spend = v;
+    }
+    if (revenueVal) {
+      const v = parseFloat(revenueVal);
+      if (Number.isNaN(v)) {
+        alert('Enter a valid number for total revenue.');
+        return;
+      }
+      payload.manual_total_revenue = v;
+    }
+
     try {
-      await api('/summary/net-profit-override', {
+      await api('/summary/override-totals', {
         method: 'POST',
-        body: JSON.stringify({ manual_net_profit: value, reason }),
+        body: JSON.stringify(payload),
       });
-      state.isEditingNetProfit = false;
-      netProfitEditRow.style.display = 'none';
+      state.isEditingTotals = false;
+      totalsEditRow.style.display = 'none';
       await loadAll();
+
+      const s = state.summary || {};
+      if (s.overridesActive && s.latestOverride) {
+        const d = s.latestOverride.created_at ? new Date(s.latestOverride.created_at) : null;
+        const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
+        const r = s.latestOverride.reason || '';
+        totalsMetaRow.style.display = '';
+        totalsMetaText.textContent = `Edited totals permanently${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
+      }
     } catch (err) {
       alert(err.message);
     }

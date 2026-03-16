@@ -73,27 +73,34 @@
     <section class="panel summary-panel">
       <h2>Net profit</h2>
       <div class="summary-box" id="summaryBox">
-        <div class="summary-row"><span>Total spend</span><span id="sumSpend">$0</span></div>
-        <div class="summary-row"><span>Total revenue</span><span id="sumRevenue">$0</span></div>
+        <div class="summary-row">
+          <span>Total spend</span>
+          <span id="sumSpend">$0</span>
+        </div>
+        <div class="summary-row">
+          <span>Total revenue</span>
+          <span id="sumRevenue">$0</span>
+        </div>
         <div class="summary-row highlight">
           <span>Net profit</span>
-          <span id="netProfitDisplay">
-            <span id="netProfit">$0</span>
-            <button type="button" class="btn btn-small" id="editNetProfit">Edit</button>
-          </span>
+          <span id="netProfit">$0</span>
         </div>
-        <div class="summary-row" id="netProfitEditRow" style="display:none;">
-          <span>Edit net profit</span>
+        <div class="summary-row">
+          <button type="button" class="btn btn-small" id="editTotals">Edit totals</button>
+        </div>
+        <div class="summary-row" id="totalsEditRow" style="display:none;">
+          <span>Edit totals</span>
           <span>
-            <input type="number" id="netProfitInput" step="0.01" />
-            <input type="text" id="netProfitReason" placeholder="Reason (optional)" />
-            <button type="button" class="btn btn-small btn-primary" id="saveNetProfit">Save</button>
-            <button type="button" class="btn btn-small" id="cancelNetProfit">Cancel</button>
+            <input type="number" id="manualTotalSpendInput" step="0.01" placeholder="Total spend" />
+            <input type="number" id="manualTotalRevenueInput" step="0.01" placeholder="Total revenue" />
+            <input type="text" id="totalsReasonInput" placeholder="Reason (optional)" />
+            <button type="button" class="btn btn-small btn-primary" id="saveTotals">Save</button>
+            <button type="button" class="btn btn-small" id="cancelTotals">Cancel</button>
           </span>
         </div>
-        <div class="summary-row" id="netProfitMetaRow" style="display:none;">
+        <div class="summary-row" id="totalsMetaRow" style="display:none;">
           <span></span>
-          <span id="netProfitMetaText"></span>
+          <span id="totalsMetaText"></span>
         </div>
       </div>
     </section>

@@ -48,10 +48,11 @@ create index if not exists idx_product_specs_product_id on product_specs(product
 create index if not exists idx_inventory_product_id on inventory(product_id);
 create index if not exists idx_sales_product_id on sales(product_id);
 
--- Manual net profit overrides (permanent with history)
-create table if not exists net_profit_overrides (
+-- Manual summary overrides (permanent with history for totals)
+create table if not exists summary_overrides (
   id uuid primary key default gen_random_uuid(),
-  manual_net_profit numeric(12,2) not null,
+  manual_total_spend numeric(12,2),
+  manual_total_revenue numeric(12,2),
   reason text,
   effective_from timestamptz default now(),
   created_at timestamptz default now()
