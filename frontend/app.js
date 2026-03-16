@@ -42,7 +42,6 @@ let state = {
     latestOverride: null,
   },
   salesClientFilter: '',
-  isEditingTotals: false,
 };
 
 async function loadAll() {
@@ -642,92 +641,133 @@ if (salesClientFilterEl) {
 }
 
 // Total spend / revenue editing (permanent, with history in backend)
-const editTotalsBtn = document.getElementById('editTotals');
-const totalsEditRow = document.getElementById('totalsEditRow');
-const manualTotalSpendInput = document.getElementById('manualTotalSpendInput');
-const manualTotalRevenueInput = document.getElementById('manualTotalRevenueInput');
-const totalsReasonInput = document.getElementById('totalsReasonInput');
-const saveTotalsBtn = document.getElementById('saveTotals');
-const cancelTotalsBtn = document.getElementById('cancelTotals');
+const editTotalSpendBtn = document.getElementById('editTotalSpend');
+const totalSpendEditRow = document.getElementById('totalSpendEditRow');
+const manualTotalSpendInputCard = document.getElementById('manualTotalSpendInputCard');
+const totalSpendReasonInput = document.getElementById('totalSpendReasonInput');
+const saveTotalSpendBtn = document.getElementById('saveTotalSpend');
+const cancelTotalSpendBtn = document.getElementById('cancelTotalSpend');
+
+const editTotalRevenueBtn = document.getElementById('editTotalRevenue');
+const totalRevenueEditRow = document.getElementById('totalRevenueEditRow');
+const manualTotalRevenueInputCard = document.getElementById('manualTotalRevenueInputCard');
+const totalRevenueReasonInput = document.getElementById('totalRevenueReasonInput');
+const saveTotalRevenueBtn = document.getElementById('saveTotalRevenue');
+const cancelTotalRevenueBtn = document.getElementById('cancelTotalRevenue');
+
 const totalsMetaRow = document.getElementById('totalsMetaRow');
 const totalsMetaText = document.getElementById('totalsMetaText');
 
 if (
-  editTotalsBtn &&
-  totalsEditRow &&
-  manualTotalSpendInput &&
-  manualTotalRevenueInput &&
-  totalsReasonInput &&
-  saveTotalsBtn &&
-  cancelTotalsBtn &&
-  totalsMetaRow &&
-  totalsMetaText
+  editTotalSpendBtn &&
+  totalSpendEditRow &&
+  manualTotalSpendInputCard &&
+  totalSpendReasonInput &&
+  saveTotalSpendBtn &&
+  cancelTotalSpendBtn
 ) {
-  editTotalsBtn.addEventListener('click', () => {
-    state.isEditingTotals = true;
+  editTotalSpendBtn.addEventListener('click', () => {
     const s = state.summary || {};
-    manualTotalSpendInput.value =
+    manualTotalSpendInputCard.value =
       s.totalSpend != null && s.totalSpend !== undefined ? String(Number(s.totalSpend).toFixed(2)) : '';
-    manualTotalRevenueInput.value =
-      s.totalRevenue != null && s.totalRevenue !== undefined ? String(Number(s.totalRevenue).toFixed(2)) : '';
-    totalsReasonInput.value = '';
-    totalsEditRow.style.display = '';
+    totalSpendReasonInput.value = '';
+    totalSpendEditRow.style.display = '';
   });
 
-  cancelTotalsBtn.addEventListener('click', () => {
-    state.isEditingTotals = false;
-    totalsEditRow.style.display = 'none';
+  cancelTotalSpendBtn.addEventListener('click', () => {
+    totalSpendEditRow.style.display = 'none';
   });
 
-  saveTotalsBtn.addEventListener('click', async () => {
-    const spendVal = manualTotalSpendInput.value.trim();
-    const revenueVal = manualTotalRevenueInput.value.trim();
-    const reason = totalsReasonInput.value.trim();
-
-    if (!spendVal && !revenueVal) {
-      alert('Enter a value for total spend and/or total revenue.');
+  saveTotalSpendBtn.addEventListener('click', async () => {
+    const spendVal = manualTotalSpendInputCard.value.trim();
+    const reason = totalSpendReasonInput.value.trim();
+    if (!spendVal) {
+      alert('Enter a value for total spend.');
       return;
     }
-
-    const payload = { reason: reason || undefined };
-    if (spendVal) {
-      const v = parseFloat(spendVal);
-      if (Number.isNaN(v)) {
-        alert('Enter a valid number for total spend.');
-        return;
-      }
-      payload.manual_total_spend = v;
+    const v = parseFloat(spendVal);
+    if (Number.isNaN(v)) {
+      alert('Enter a valid number for total spend.');
+      return;
     }
-    if (revenueVal) {
-      const v = parseFloat(revenueVal);
-      if (Number.isNaN(v)) {
-        alert('Enter a valid number for total revenue.');
-        return;
-      }
-      payload.manual_total_revenue = v;
-    }
-
+    const payload = {
+      manual_total_spend: v,
+      reason: reason || undefined,
+    };
     try {
       await api('/summary/override-totals', {
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      state.isEditingTotals = false;
-      totalsEditRow.style.display = 'none';
+      totalSpendEditRow.style.display = 'none';
       await loadAll();
-
-      const s = state.summary || {};
-      if (s.overridesActive && s.latestOverride) {
-        const d = s.latestOverride.created_at ? new Date(s.latestOverride.created_at) : null;
-        const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
-        const r = s.latestOverride.reason || '';
-        totalsMetaRow.style.display = '';
-        totalsMetaText.textContent = `Edited totals permanently${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
-      }
     } catch (err) {
       alert(err.message);
     }
   });
+}
+
+if (
+  editTotalRevenueBtn &&
+  totalRevenueEditRow &&
+  manualTotalRevenueInputCard &&
+  totalRevenueReasonInput &&
+  saveTotalRevenueBtn &&
+  cancelTotalRevenueBtn
+) {
+  editTotalRevenueBtn.addEventListener('click', () => {
+    const s = state.summary || {};
+    manualTotalRevenueInputCard.value =
+      s.totalRevenue != null && s.totalRevenue !== undefined ? String(Number(s.totalRevenue).toFixed(2)) : '';
+    totalRevenueReasonInput.value = '';
+    totalRevenueEditRow.style.display = '';
+  });
+
+  cancelTotalRevenueBtn.addEventListener('click', () => {
+    totalRevenueEditRow.style.display = 'none';
+  });
+
+  saveTotalRevenueBtn.addEventListener('click', async () => {
+    const revenueVal = manualTotalRevenueInputCard.value.trim();
+    const reason = totalRevenueReasonInput.value.trim();
+    if (!revenueVal) {
+      alert('Enter a value for total revenue.');
+      return;
+    }
+    const v = parseFloat(revenueVal);
+    if (Number.isNaN(v)) {
+      alert('Enter a valid number for total revenue.');
+      return;
+    }
+    const payload = {
+      manual_total_revenue: v,
+      reason: reason || undefined,
+    };
+    try {
+      await api('/summary/override-totals', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      totalRevenueEditRow.style.display = 'none';
+      await loadAll();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
+
+if (totalsMetaRow && totalsMetaText) {
+  const s = state.summary || {};
+  if (s.overridesActive && s.latestOverride) {
+    const d = s.latestOverride.created_at ? new Date(s.latestOverride.created_at) : null;
+    const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
+    const r = s.latestOverride.reason || '';
+    totalsMetaRow.style.display = '';
+    totalsMetaText.textContent = `Edited totals permanently${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
+  } else {
+    totalsMetaRow.style.display = 'none';
+    totalsMetaText.textContent = '';
+  }
 }
 
 loadAll();
