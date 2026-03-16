@@ -136,8 +136,16 @@ function renderSpendTable() {
       const summaryText = `${rows.length} product${rows.length === 1 ? '' : 's'}`;
 
       const detailsRows = rows
-        .map(
-          (r) => `
+        .map((r) => {
+          const rawDate = r.purchase_date || r.created_at;
+          let rowDateKey = '';
+          if (rawDate) {
+            const d = new Date(rawDate);
+            if (!Number.isNaN(d.getTime())) {
+              rowDateKey = d.toISOString().slice(0, 10);
+            }
+          }
+          return `
               <tr>
                 <td>${escapeHtml(r.cat_no || '-')}</td>
                 <td>${escapeHtml(r.product_name || '')}</td>
@@ -146,14 +154,20 @@ function renderSpendTable() {
                 <td class="num">${r.quantity}</td>
                 <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
                 <td>
+                  <button type="button" class="btn btn-small" data-edit-row-id="${r.id}">Edit</button>
                   <button type="button" class="btn btn-small btn-delete"
                     data-product-id="${r.product_id}"
                     data-spec-id="${r.product_spec_id}">
                     Delete
                   </button>
+                  <span class="row-date-editor" data-editor-for-row="${r.id}" style="display:none;">
+                    <input type="date" data-date-input-for-row="${r.id}" value="${rowDateKey}" />
+                    <button type="button" class="btn btn-small btn-primary" data-save-row-id="${r.id}">Save</button>
+                    <button type="button" class="btn btn-small" data-cancel-row-id="${r.id}">Cancel</button>
+                  </span>
                 </td>
-              </tr>`,
-        )
+              </tr>`;
+        })
         .join('');
 
       return `
@@ -164,19 +178,7 @@ function renderSpendTable() {
           </td>
           <td>${escapeHtml(summaryText)}</td>
           <td class="num">${formatMoney(orderTotal)}</td>
-          <td>
-            <button type="button" class="btn btn-small" data-edit-order-id="${orderId}" data-order-date="${dateKey}">Edit</button>
-          </td>
-        </tr>
-        <tr class="order-edit-row" data-order-id="${orderId}" style="display:none;">
-          <td colspan="4">
-            <label>
-              Order date
-              <input type="date" data-order-date-input="${orderId}" value="${dateKey}" />
-            </label>
-            <button type="button" class="btn btn-small btn-primary" data-save-order-id="${orderId}">Save</button>
-            <button type="button" class="btn btn-small" data-cancel-order-id="${orderId}">Cancel</button>
-          </td>
+          <td></td>
         </tr>
         <tr class="order-details" data-order-id="${orderId}" style="display:none;">
           <td colspan="4">
@@ -220,56 +222,51 @@ function renderSpendTable() {
     btn.addEventListener('click', () => deletePurchase(btn.dataset.productId, btn.dataset.specId));
   });
 
-  // Order date edit handlers
-  tbody.querySelectorAll('button[data-edit-order-id]').forEach((btn) => {
+  // Per-row order date edit handlers
+  tbody.querySelectorAll('button[data-edit-row-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const id = btn.dataset.editOrderId;
-      const row = tbody.querySelector(`.order-edit-row[data-order-id="${id}"]`);
-      if (!row) return;
-      row.style.display = row.style.display === 'none' ? '' : 'none';
+      const id = btn.dataset.editRowId;
+      const editor = tbody.querySelector(`.row-date-editor[data-editor-for-row="${id}"]`);
+      if (!editor) return;
+      editor.style.display = editor.style.display === 'none' ? '' : 'none';
     });
   });
 
-  tbody.querySelectorAll('button[data-cancel-order-id]').forEach((btn) => {
+  tbody.querySelectorAll('button[data-cancel-row-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const id = btn.dataset.cancelOrderId;
-      const row = tbody.querySelector(`.order-edit-row[data-order-id="${id}"]`);
-      if (!row) return;
-      row.style.display = 'none';
+      const id = btn.dataset.cancelRowId;
+      const editor = tbody.querySelector(`.row-date-editor[data-editor-for-row="${id}"]`);
+      if (!editor) return;
+      editor.style.display = 'none';
     });
   });
 
-  tbody.querySelectorAll('button[data-save-order-id]').forEach((btn) => {
+  tbody.querySelectorAll('button[data-save-row-id]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const id = btn.dataset.saveOrderId;
-      const input = tbody.querySelector(`input[data-order-date-input="${id}"]`);
-      if (!input || !input.value) {
+      const id = btn.dataset.saveRowId;
+      const editor = tbody.querySelector(`.row-date-editor[data-editor-for-row="${id}"]`);
+      const input = tbody.querySelector(`input[data-date-input-for-row="${id}"]`);
+      if (!editor || !input || !input.value) {
         alert('Select a valid order date.');
         return;
       }
       const newDate = input.value; // YYYY-MM-DD
-      const rows = groups[newDate] ? groups[newDate] : null;
-      // We need rows for this specific order id; recompute from groups keyed by id
-      const keyForId = Object.keys(groups).find((key, index) => `order-${index}` === id);
-      if (!keyForId) {
-        alert('Could not find order rows for this date.');
+      const row = items.find((r) => r.id === id);
+      if (!row) {
+        alert('Could not find this purchase row.');
         return;
       }
-      const affected = groups[keyForId] || [];
       try {
-        await Promise.all(
-          affected.map((r) =>
-            api('/inventory', {
-              method: 'PUT',
-              body: JSON.stringify({
-                product_id: r.product_id,
-                product_spec_id: r.product_spec_id,
-                quantity: r.quantity,
-                purchase_date: newDate,
-              }),
-            }),
-          ),
-        );
+        await api('/inventory', {
+          method: 'PUT',
+          body: JSON.stringify({
+            product_id: row.product_id,
+            product_spec_id: row.product_spec_id,
+            quantity: row.quantity,
+            purchase_date: newDate,
+          }),
+        });
+        editor.style.display = 'none';
         await loadAll();
       } catch (err) {
         alert(err.message);
