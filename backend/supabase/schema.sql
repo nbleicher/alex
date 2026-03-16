@@ -38,10 +38,20 @@ create table if not exists sales (
   quantity_sold integer not null check (quantity_sold >= 0),
   sell_price_per_sub numeric(12,2) not null,
   revenue numeric(12,2) not null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  client_name text
 );
 
 -- Indexes for common lookups
 create index if not exists idx_product_specs_product_id on product_specs(product_id);
 create index if not exists idx_inventory_product_id on inventory(product_id);
 create index if not exists idx_sales_product_id on sales(product_id);
+
+-- Manual net profit overrides (permanent with history)
+create table if not exists net_profit_overrides (
+  id uuid primary key default gen_random_uuid(),
+  manual_net_profit numeric(12,2) not null,
+  reason text,
+  effective_from timestamptz default now(),
+  created_at timestamptz default now()
+);

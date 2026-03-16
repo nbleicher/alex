@@ -8,7 +8,7 @@ inventoryRouter.get('/', async (req, res) => {
   try {
     const { data: rows, error } = await supabase
       .from('inventory')
-      .select('id, product_id, product_spec_id, quantity');
+      .select('id, product_id, product_spec_id, quantity, created_at');
     if (error) throw error;
 
     if (!rows || rows.length === 0) {
@@ -39,6 +39,7 @@ inventoryRouter.get('/', async (req, res) => {
         product_id: r.product_id,
         product_spec_id: r.product_spec_id,
         quantity: r.quantity,
+        created_at: r.created_at,
         product_name: product.name,
         spec: spec.spec,
         price,

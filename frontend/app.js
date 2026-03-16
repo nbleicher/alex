@@ -31,7 +31,10 @@ let state = {
   products: [],
   inventory: [],
   sales: [],
-  summary: { totalSpend: 0, totalRevenue: 0, netProfit: 0 },
+  summary: { totalSpend: 0, totalRevenue: 0, netProfit: 0, computedNetProfit: 0, netProfitOverridden: false, lastOverride: null },
+  salesClientFilter: '',
+  spendOrderFilter: '',
+  isEditingNetProfit: false,
 };
 
 async function loadAll() {
@@ -45,7 +48,7 @@ async function loadAll() {
     state.products = products || [];
     state.inventory = inventory || [];
     state.sales = sales || [];
-    state.summary = summary || { totalSpend: 0, totalRevenue: 0, netProfit: 0 };
+    state.summary = summary || { totalSpend: 0, totalRevenue: 0, netProfit: 0, computedNetProfit: 0 };
     render();
   } catch (e) {
     console.error(e);
@@ -73,16 +76,54 @@ function getInventoryByProduct() {
 
 function renderSpendTable() {
   const tbody = document.getElementById('spendBody');
-  const rows = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
+  const allRows = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
+
+  // Build distinct order dates (by created_at date only)
+  const orderSelect = document.getElementById('spendOrderFilter');
+  if (orderSelect) {
+    const seen = new Set();
+    const dates = [];
+    allRows.forEach((r) => {
+      if (!r.created_at) return;
+      const d = new Date(r.created_at);
+      if (Number.isNaN(d.getTime())) return;
+      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      if (!seen.has(key)) {
+        seen.add(key);
+        dates.push(key);
+      }
+    });
+    dates.sort();
+    const current = state.spendOrderFilter || '';
+    orderSelect.innerHTML = '<option value="">All</option>' + dates.map((d) => `<option value="${d}">${d}</option>`).join('');
+    if (current) orderSelect.value = current;
+  }
+
+  const rows = allRows.filter((r) => {
+    if (!state.spendOrderFilter) return true;
+    if (!r.created_at) return false;
+    const d = new Date(r.created_at);
+    if (Number.isNaN(d.getTime())) return false;
+    const key = d.toISOString().slice(0, 10);
+    return key === state.spendOrderFilter;
+  });
   let totalSpend = 0;
   rows.forEach((r) => {
     totalSpend += (Number(r.price) || 0) * (r.quantity || 0);
   });
 
   tbody.innerHTML = rows
-    .map(
-      (r) => `
+    .map((r) => {
+      let orderLabel = '';
+      if (r.created_at) {
+        const d = new Date(r.created_at);
+        if (!Number.isNaN(d.getTime())) {
+          orderLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+      }
+      return `
     <tr>
+      <td>${escapeHtml(orderLabel || '-')}</td>
       <td>${escapeHtml(r.cat_no || '-')}</td>
       <td>${escapeHtml(r.product_name || '')}</td>
       <td>${escapeHtml(r.spec || '')}</td>
@@ -90,8 +131,8 @@ function renderSpendTable() {
       <td class="num">${r.quantity}</td>
       <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
       <td><button type="button" class="btn btn-small btn-delete" data-product-id="${r.product_id}" data-spec-id="${r.product_spec_id}">Delete</button></td>
-    </tr>`
-    )
+    </tr>`;
+    })
     .join('');
 
   document.getElementById('totalSpend').textContent = formatMoney(totalSpend);
@@ -166,25 +207,86 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
 
 function renderSalesTable() {
   const tbody = document.getElementById('salesBody');
+  const filterSelect = document.getElementById('salesClientFilter');
+
+  // Build client filter options
+  const allSales = state.sales || [];
+  if (filterSelect) {
+    const seen = new Set();
+    const clients = [];
+    allSales.forEach((s) => {
+      const raw = (s.client_name || '').trim();
+      const key = raw || '(none)';
+      if (!seen.has(key)) {
+        seen.add(key);
+        clients.push(key);
+      }
+    });
+    clients.sort((a, b) => a.localeCompare(b));
+    const current = state.salesClientFilter || '';
+    filterSelect.innerHTML =
+      '<option value="">All</option>' +
+      clients.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    if (current) filterSelect.value = current;
+  }
+
+  // Filter and sort: cluster by client then sale date
+  const filtered = allSales
+    .filter((s) => {
+      if (!state.salesClientFilter) return true;
+      const key = (s.client_name || '(none)').trim() || '(none)';
+      return key === state.salesClientFilter;
+    })
+    .slice()
+    .sort((a, b) => {
+      const ca = (a.client_name || '').toLowerCase();
+      const cb = (b.client_name || '').toLowerCase();
+      if (ca < cb) return -1;
+      if (ca > cb) return 1;
+      const da = new Date(a.created_at || 0).getTime();
+      const db = new Date(b.created_at || 0).getTime();
+      return db - da; // newest first within client
+    });
+
   let totalRevenue = 0;
-  state.sales.forEach((s) => {
+  filtered.forEach((s) => {
     totalRevenue += Number(s.revenue) || 0;
   });
-  tbody.innerHTML = state.sales
-    .map(
-      (s) => `
+
+  tbody.innerHTML = filtered
+    .map((s) => {
+      let dateLabel = '';
+      if (s.created_at) {
+        const d = new Date(s.created_at);
+        if (!Number.isNaN(d.getTime())) {
+          dateLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+      }
+      const clientLabel = (s.client_name || '').trim() || '—';
+      return `
     <tr>
+      <td>${escapeHtml(dateLabel || '-')}</td>
+      <td>${escapeHtml(clientLabel)}</td>
       <td>${escapeHtml(s.product_name || '')} ${escapeHtml(s.spec || '')}</td>
       <td class="num">${s.quantity_sold}</td>
       <td class="num">${formatMoney(s.sell_price_per_sub)}</td>
       <td class="num">${formatMoney(s.revenue)}</td>
-      <td><button type="button" class="btn btn-small btn-delete" data-sale-id="${s.id}">Delete</button></td>
-    </tr>`
-    )
+      <td>
+        <button type="button" class="btn btn-small" data-edit-sale-id="${s.id}">Edit</button>
+        <button type="button" class="btn btn-small btn-delete" data-sale-id="${s.id}">Delete</button>
+      </td>
+    </tr>`;
+    })
     .join('');
   document.getElementById('totalRevenue').textContent = formatMoney(totalRevenue);
   tbody.querySelectorAll('[data-sale-id]').forEach((btn) => {
     btn.addEventListener('click', () => deleteSale(btn.dataset.saleId));
+  });
+  tbody.querySelectorAll('[data-edit-sale-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sale = allSales.find((s) => s.id === btn.dataset.editSaleId);
+      if (sale) openEditSaleModal(sale);
+    });
   });
 }
 
@@ -202,11 +304,28 @@ function renderSummary() {
   document.getElementById('sumSpend').textContent = formatMoney(s.totalSpend);
   document.getElementById('sumRevenue').textContent = formatMoney(s.totalRevenue);
   const el = document.getElementById('netProfit');
-  el.textContent = formatMoney(s.netProfit);
+  const metaRow = document.getElementById('netProfitMetaRow');
+  const metaText = document.getElementById('netProfitMetaText');
+
+  const netProfit = s.netProfit;
+  el.textContent = formatMoney(netProfit);
   el.classList.remove('positive', 'negative');
-  if (s.netProfit > 0) el.classList.add('positive');
-  else if (s.netProfit < 0) el.classList.add('negative');
-  el.style.color = ''; // let CSS class control color
+  if (netProfit > 0) el.classList.add('positive');
+  else if (netProfit < 0) el.classList.add('negative');
+  el.style.color = '';
+
+  if (s.netProfitOverridden && s.lastOverride) {
+    if (metaRow && metaText) {
+      const d = s.lastOverride.created_at ? new Date(s.lastOverride.created_at) : null;
+      const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
+      const reason = s.lastOverride.reason || '';
+      metaRow.style.display = '';
+      metaText.textContent = `Edited permanently${when ? ` on ${when}` : ''}${reason ? ` – ${reason}` : ''}`;
+    }
+  } else if (metaRow && metaText) {
+    metaRow.style.display = 'none';
+    metaText.textContent = '';
+  }
 }
 
 function escapeHtml(s) {
@@ -238,6 +357,30 @@ function openSaleModal() {
   const opts = getInStockOptions();
   select.innerHTML = '<option value="">Select item</option>' + opts.map((o) => `<option value="${o.product_id}|${o.product_spec_id}">${escapeHtml(o.label)}</option>`).join('');
   document.getElementById('saleForm').reset();
+  document.getElementById('saleId').value = '';
+  document.getElementById('saleClient').value = '';
+  const submitBtn = document.getElementById('saleSubmitBtn');
+  if (submitBtn) submitBtn.textContent = 'Add sale';
+  document.getElementById('saleModal').setAttribute('aria-hidden', 'false');
+}
+
+function openEditSaleModal(sale) {
+  const select = document.getElementById('saleItem');
+  const opts = getInStockOptions();
+  select.innerHTML = '<option value="">Select item</option>' + opts.map((o) => `<option value="${o.product_id}|${o.product_spec_id}">${escapeHtml(o.label)}</option>`).join('');
+
+  document.getElementById('saleForm').reset();
+  document.getElementById('saleId').value = sale.id;
+  document.getElementById('saleQty').value = sale.quantity_sold;
+  document.getElementById('salePrice').value = sale.sell_price_per_sub;
+  document.getElementById('saleClient').value = sale.client_name || '';
+
+  const value = `${sale.product_id}|${sale.product_spec_id}`;
+  document.getElementById('saleItem').value = value;
+
+  const submitBtn = document.getElementById('saleSubmitBtn');
+  if (submitBtn) submitBtn.textContent = 'Save changes';
+
   document.getElementById('saleModal').setAttribute('aria-hidden', 'false');
 }
 
@@ -256,11 +399,20 @@ document.getElementById('saleForm').addEventListener('submit', async (e) => {
   const [product_id, product_spec_id] = val.split('|');
   const quantity_sold = parseInt(document.getElementById('saleQty').value, 10) || 0;
   const sell_price_per_sub = parseFloat(document.getElementById('salePrice').value) || 0;
+  const client_name = document.getElementById('saleClient').value.trim() || null;
+  const saleId = document.getElementById('saleId').value || null;
   try {
-    await api('/sales', {
-      method: 'POST',
-      body: JSON.stringify({ product_id, product_spec_id, quantity_sold, sell_price_per_sub }),
-    });
+    if (saleId) {
+      await api(`/sales/${saleId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity_sold, sell_price_per_sub, client_name }),
+      });
+    } else {
+      await api('/sales', {
+        method: 'POST',
+        body: JSON.stringify({ product_id, product_spec_id, quantity_sold, sell_price_per_sub, client_name }),
+      });
+    }
     closeSaleModal();
     await loadAll();
   } catch (err) {
@@ -418,6 +570,67 @@ async function deleteProduct(id) {
   } catch (err) {
     alert(err.message);
   }
+}
+
+// Filters
+const spendOrderFilterEl = document.getElementById('spendOrderFilter');
+if (spendOrderFilterEl) {
+  spendOrderFilterEl.addEventListener('change', (e) => {
+    state.spendOrderFilter = e.target.value || '';
+    renderSpendTable();
+  });
+}
+
+const salesClientFilterEl = document.getElementById('salesClientFilter');
+if (salesClientFilterEl) {
+  salesClientFilterEl.addEventListener('change', (e) => {
+    state.salesClientFilter = e.target.value || '';
+    renderSalesTable();
+  });
+}
+
+// Net profit editing (permanent, with history in backend)
+const editNetProfitBtn = document.getElementById('editNetProfit');
+const netProfitEditRow = document.getElementById('netProfitEditRow');
+const netProfitInput = document.getElementById('netProfitInput');
+const netProfitReason = document.getElementById('netProfitReason');
+const saveNetProfitBtn = document.getElementById('saveNetProfit');
+const cancelNetProfitBtn = document.getElementById('cancelNetProfit');
+
+if (editNetProfitBtn && netProfitEditRow && netProfitInput && netProfitReason && saveNetProfitBtn && cancelNetProfitBtn) {
+  editNetProfitBtn.addEventListener('click', () => {
+    state.isEditingNetProfit = true;
+    const s = state.summary || {};
+    const current = s.netProfit != null ? Number(s.netProfit) : 0;
+    netProfitInput.value = current;
+    netProfitReason.value = '';
+    netProfitEditRow.style.display = '';
+  });
+
+  cancelNetProfitBtn.addEventListener('click', () => {
+    state.isEditingNetProfit = false;
+    netProfitEditRow.style.display = 'none';
+  });
+
+  saveNetProfitBtn.addEventListener('click', async () => {
+    const value = parseFloat(netProfitInput.value);
+    if (Number.isNaN(value)) {
+      alert('Enter a valid number for net profit.');
+      return;
+    }
+    const reason = netProfitReason.value.trim();
+    try {
+      await api('/summary/net-profit-override', {
+        method: 'POST',
+        body: JSON.stringify({ manual_net_profit: value, reason }),
+      });
+      state.isEditingNetProfit = false;
+      netProfitEditRow.style.display = 'none';
+      await loadAll();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
 }
 
 loadAll();

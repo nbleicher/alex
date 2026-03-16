@@ -22,10 +22,18 @@
   <main class="main two-col">
     <section class="panel spend-panel">
       <h2>Spend</h2>
+      <div class="filter-row">
+        <label>Order
+          <select id="spendOrderFilter">
+            <option value="">All</option>
+          </select>
+        </label>
+      </div>
       <div class="table-wrap">
         <table class="data-table" id="spendTable">
           <thead>
             <tr>
+              <th>Order</th>
               <th>Cat.No</th>
               <th>Product</th>
               <th>Spec</th>
@@ -45,10 +53,19 @@
     <section class="panel right-panel">
       <section class="sales-section">
         <h2>Sales</h2>
+        <div class="filter-row">
+          <label>Client
+            <select id="salesClientFilter">
+              <option value="">All</option>
+            </select>
+          </label>
+        </div>
         <div class="table-wrap">
           <table class="data-table" id="salesTable">
             <thead>
               <tr>
+                <th>Sale date</th>
+                <th>Client</th>
                 <th>Item</th>
                 <th>Qty sold</th>
                 <th>Sell price</th>
@@ -69,7 +86,26 @@
       <div class="summary-box" id="summaryBox">
         <div class="summary-row"><span>Total spend</span><span id="sumSpend">$0</span></div>
         <div class="summary-row"><span>Total revenue</span><span id="sumRevenue">$0</span></div>
-        <div class="summary-row highlight"><span>Net profit</span><span id="netProfit">$0</span></div>
+        <div class="summary-row highlight">
+          <span>Net profit</span>
+          <span id="netProfitDisplay">
+            <span id="netProfit">$0</span>
+            <button type="button" class="btn btn-small" id="editNetProfit">Edit</button>
+          </span>
+        </div>
+        <div class="summary-row" id="netProfitEditRow" style="display:none;">
+          <span>Edit net profit</span>
+          <span>
+            <input type="number" id="netProfitInput" step="0.01" />
+            <input type="text" id="netProfitReason" placeholder="Reason (optional)" />
+            <button type="button" class="btn btn-small btn-primary" id="saveNetProfit">Save</button>
+            <button type="button" class="btn btn-small" id="cancelNetProfit">Cancel</button>
+          </span>
+        </div>
+        <div class="summary-row" id="netProfitMetaRow" style="display:none;">
+          <span></span>
+          <span id="netProfitMetaText"></span>
+        </div>
       </div>
     </section>
   </main>
@@ -144,11 +180,13 @@
       </div>
       <div class="modal-body">
         <form id="saleForm">
+          <input type="hidden" id="saleId" />
           <label>Item <select id="saleItem" required></select></label>
           <label>Qty sold (sub-items) <input type="number" id="saleQty" min="1" required /></label>
           <label>Sell price (per sub-item) <input type="number" id="salePrice" step="0.01" min="0" required /></label>
+          <label>Client <input type="text" id="saleClient" /></label>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Add sale</button>
+            <button type="submit" class="btn btn-primary" id="saleSubmitBtn">Add sale</button>
             <button type="button" class="btn" id="cancelSale">Cancel</button>
           </div>
         </form>
