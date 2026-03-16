@@ -164,7 +164,19 @@ function renderSpendTable() {
           </td>
           <td>${escapeHtml(summaryText)}</td>
           <td class="num">${formatMoney(orderTotal)}</td>
-          <td></td>
+          <td>
+            <button type="button" class="btn btn-small" data-edit-order-id="${orderId}" data-order-date="${dateKey}">Edit</button>
+          </td>
+        </tr>
+        <tr class="order-edit-row" data-order-id="${orderId}" style="display:none;">
+          <td colspan="4">
+            <label>
+              Order date
+              <input type="date" data-order-date-input="${orderId}" value="${dateKey}" />
+            </label>
+            <button type="button" class="btn btn-small btn-primary" data-save-order-id="${orderId}">Save</button>
+            <button type="button" class="btn btn-small" data-cancel-order-id="${orderId}">Cancel</button>
+          </td>
         </tr>
         <tr class="order-details" data-order-id="${orderId}" style="display:none;">
           <td colspan="4">
@@ -206,6 +218,63 @@ function renderSpendTable() {
   // Delete handlers for nested rows
   tbody.querySelectorAll('button[data-product-id]').forEach((btn) => {
     btn.addEventListener('click', () => deletePurchase(btn.dataset.productId, btn.dataset.specId));
+  });
+
+  // Order date edit handlers
+  tbody.querySelectorAll('button[data-edit-order-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.editOrderId;
+      const row = tbody.querySelector(`.order-edit-row[data-order-id="${id}"]`);
+      if (!row) return;
+      row.style.display = row.style.display === 'none' ? '' : 'none';
+    });
+  });
+
+  tbody.querySelectorAll('button[data-cancel-order-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.cancelOrderId;
+      const row = tbody.querySelector(`.order-edit-row[data-order-id="${id}"]`);
+      if (!row) return;
+      row.style.display = 'none';
+    });
+  });
+
+  tbody.querySelectorAll('button[data-save-order-id]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.saveOrderId;
+      const input = tbody.querySelector(`input[data-order-date-input="${id}"]`);
+      if (!input || !input.value) {
+        alert('Select a valid order date.');
+        return;
+      }
+      const newDate = input.value; // YYYY-MM-DD
+      const rows = groups[newDate] ? groups[newDate] : null;
+      // We need rows for this specific order id; recompute from groups keyed by id
+      const keyForId = Object.keys(groups).find((key, index) => `order-${index}` === id);
+      if (!keyForId) {
+        alert('Could not find order rows for this date.');
+        return;
+      }
+      const affected = groups[keyForId] || [];
+      try {
+        await Promise.all(
+          affected.map((r) =>
+            api('/inventory', {
+              method: 'PUT',
+              body: JSON.stringify({
+                product_id: r.product_id,
+                product_spec_id: r.product_spec_id,
+                quantity: r.quantity,
+                purchase_date: newDate,
+              }),
+            }),
+          ),
+        );
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
   });
 }
 
@@ -657,6 +726,10 @@ const cancelTotalRevenueBtn = document.getElementById('cancelTotalRevenue');
 
 const totalsMetaRow = document.getElementById('totalsMetaRow');
 const totalsMetaText = document.getElementById('totalsMetaText');
+const viewOverrideHistoryBtn = document.getElementById('viewOverrideHistory');
+const overridesHistoryModal = document.getElementById('overridesHistoryModal');
+const closeOverridesHistoryBtn = document.getElementById('closeOverridesHistory');
+const overridesHistoryBody = document.getElementById('overridesHistoryBody');
 
 if (
   editTotalSpendBtn &&
@@ -768,6 +841,49 @@ if (totalsMetaRow && totalsMetaText) {
     totalsMetaRow.style.display = 'none';
     totalsMetaText.textContent = '';
   }
+}
+
+async function openOverridesHistory() {
+  if (!overridesHistoryModal || !overridesHistoryBody) return;
+  try {
+    const history = (await api('/summary/overrides')) || [];
+    overridesHistoryBody.innerHTML =
+      history
+        .map((h) => {
+          const d = h.created_at ? new Date(h.created_at) : null;
+          const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
+          const spend =
+            h.manual_total_spend != null && h.manual_total_spend !== undefined
+              ? formatMoney(h.manual_total_spend)
+              : '—';
+          const revenue =
+            h.manual_total_revenue != null && h.manual_total_revenue !== undefined
+              ? formatMoney(h.manual_total_revenue)
+              : '—';
+          const reason = h.reason || '';
+          return `
+        <tr>
+          <td>${escapeHtml(when)}</td>
+          <td class="num">${spend}</td>
+          <td class="num">${revenue}</td>
+          <td>${escapeHtml(reason)}</td>
+        </tr>`;
+        })
+        .join('') || '<tr><td colspan="4">No manual edits yet.</td></tr>';
+    overridesHistoryModal.setAttribute('aria-hidden', 'false');
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+function closeOverridesHistory() {
+  if (!overridesHistoryModal) return;
+  overridesHistoryModal.setAttribute('aria-hidden', 'true');
+}
+
+if (viewOverrideHistoryBtn && overridesHistoryModal && closeOverridesHistoryBtn && overridesHistoryBody) {
+  viewOverrideHistoryBtn.addEventListener('click', openOverridesHistory);
+  closeOverridesHistoryBtn.addEventListener('click', closeOverridesHistory);
 }
 
 loadAll();

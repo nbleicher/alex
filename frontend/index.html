@@ -109,6 +109,9 @@
           <span>Net profit</span>
           <span id="netProfit">$0</span>
         </div>
+        <div class="summary-row">
+          <button type="button" class="btn btn-small" id="viewOverrideHistory">View edit history</button>
+        </div>
         <div class="summary-row" id="totalsMetaRow" style="display:none;">
           <span></span>
           <span id="totalsMetaText"></span>
@@ -116,6 +119,30 @@
       </div>
     </section>
   </main>
+
+  <!-- Manual totals history modal -->
+  <div class="modal" id="overridesHistoryModal" aria-hidden="true">
+    <div class="modal-content modal-wide">
+      <div class="modal-header">
+        <h2>Manual totals history</h2>
+        <button type="button" class="btn-close" id="closeOverridesHistory" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Total spend</th>
+              <th>Total revenue</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody id="overridesHistoryBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
   <!-- Manage products modal -->
   <div class="modal" id="productsModal" aria-hidden="true">
