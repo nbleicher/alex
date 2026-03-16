@@ -25,6 +25,7 @@ create table if not exists inventory (
   product_id uuid not null references products(id) on delete cascade,
   product_spec_id uuid not null references product_specs(id) on delete cascade,
   quantity integer not null default 0 check (quantity >= 0),
+  purchase_date timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   unique(product_id)

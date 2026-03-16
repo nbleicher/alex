@@ -33,7 +33,6 @@ let state = {
   sales: [],
   summary: { totalSpend: 0, totalRevenue: 0, netProfit: 0, computedNetProfit: 0, netProfitOverridden: false, lastOverride: null },
   salesClientFilter: '',
-  spendOrderFilter: '',
   isEditingNetProfit: false,
 };
 
@@ -76,67 +75,117 @@ function getInventoryByProduct() {
 
 function renderSpendTable() {
   const tbody = document.getElementById('spendBody');
-  const allRows = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
+  const items = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
 
-  // Build distinct order dates (by created_at date only)
-  const orderSelect = document.getElementById('spendOrderFilter');
-  if (orderSelect) {
-    const seen = new Set();
-    const dates = [];
-    allRows.forEach((r) => {
-      if (!r.created_at) return;
-      const d = new Date(r.created_at);
-      if (Number.isNaN(d.getTime())) return;
-      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
-      if (!seen.has(key)) {
-        seen.add(key);
-        dates.push(key);
-      }
-    });
-    dates.sort();
-    const current = state.spendOrderFilter || '';
-    orderSelect.innerHTML = '<option value="">All</option>' + dates.map((d) => `<option value="${d}">${d}</option>`).join('');
-    if (current) orderSelect.value = current;
-  }
-
-  const rows = allRows.filter((r) => {
-    if (!state.spendOrderFilter) return true;
-    if (!r.created_at) return false;
-    const d = new Date(r.created_at);
-    if (Number.isNaN(d.getTime())) return false;
-    const key = d.toISOString().slice(0, 10);
-    return key === state.spendOrderFilter;
+  // Group by order date: prefer purchase_date, fall back to created_at
+  const groups = {};
+  items.forEach((r) => {
+    const rawDate = r.purchase_date || r.created_at;
+    if (!rawDate) return;
+    const d = new Date(rawDate);
+    if (Number.isNaN(d.getTime())) return;
+    const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(r);
   });
+
+  const orderKeys = Object.keys(groups).sort(); // oldest first; reverse if you want newest first
+
   let totalSpend = 0;
-  rows.forEach((r) => {
-    totalSpend += (Number(r.price) || 0) * (r.quantity || 0);
+  orderKeys.forEach((key) => {
+    groups[key].forEach((r) => {
+      totalSpend += (Number(r.price) || 0) * (r.quantity || 0);
+    });
   });
 
-  tbody.innerHTML = rows
-    .map((r) => {
-      let orderLabel = '';
-      if (r.created_at) {
-        const d = new Date(r.created_at);
-        if (!Number.isNaN(d.getTime())) {
-          orderLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-        }
-      }
+  tbody.innerHTML = orderKeys
+    .map((dateKey, idx) => {
+      const orderId = `order-${idx}`;
+      const rows = groups[dateKey];
+      const orderTotal = rows.reduce(
+        (sum, r) => sum + (Number(r.price) || 0) * (r.quantity || 0),
+        0,
+      );
+      const orderLabel = (() => {
+        const d = new Date(rows[0].purchase_date || rows[0].created_at);
+        if (Number.isNaN(d.getTime())) return dateKey;
+        return d.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        });
+      })();
+      const summaryText = `${rows.length} product${rows.length === 1 ? '' : 's'}`;
+
+      const detailsRows = rows
+        .map(
+          (r) => `
+              <tr>
+                <td>${escapeHtml(r.cat_no || '-')}</td>
+                <td>${escapeHtml(r.product_name || '')}</td>
+                <td>${escapeHtml(r.spec || '')}</td>
+                <td class="num">${formatMoney(r.price)}</td>
+                <td class="num">${r.quantity}</td>
+                <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
+                <td>
+                  <button type="button" class="btn btn-small btn-delete"
+                    data-product-id="${r.product_id}"
+                    data-spec-id="${r.product_spec_id}">
+                    Delete
+                  </button>
+                </td>
+              </tr>`,
+        )
+        .join('');
+
       return `
-    <tr>
-      <td>${escapeHtml(orderLabel || '-')}</td>
-      <td>${escapeHtml(r.cat_no || '-')}</td>
-      <td>${escapeHtml(r.product_name || '')}</td>
-      <td>${escapeHtml(r.spec || '')}</td>
-      <td class="num">${formatMoney(r.price)}</td>
-      <td class="num">${r.quantity}</td>
-      <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
-      <td><button type="button" class="btn btn-small btn-delete" data-product-id="${r.product_id}" data-spec-id="${r.product_spec_id}">Delete</button></td>
-    </tr>`;
+        <tr class="order-row" data-order-id="${orderId}">
+          <td>
+            <button type="button" class="btn btn-small toggle-order" data-order-id="${orderId}">▼</button>
+            ${escapeHtml(orderLabel)}
+          </td>
+          <td>${escapeHtml(summaryText)}</td>
+          <td class="num">${formatMoney(orderTotal)}</td>
+          <td></td>
+        </tr>
+        <tr class="order-details" data-order-id="${orderId}" style="display:none;">
+          <td colspan="4">
+            <table class="nested-table">
+              <thead>
+                <tr>
+                  <th>Cat.No</th>
+                  <th>Product</th>
+                  <th>Spec</th>
+                  <th class="num">Cost</th>
+                  <th class="num">Qty</th>
+                  <th class="num">Total</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${detailsRows}
+              </tbody>
+            </table>
+          </td>
+        </tr>`;
     })
     .join('');
 
   document.getElementById('totalSpend').textContent = formatMoney(totalSpend);
 
+  // Toggle handlers
+  tbody.querySelectorAll('.toggle-order').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.orderId;
+      const row = tbody.querySelector(`.order-details[data-order-id="${id}"]`);
+      if (!row) return;
+      const hidden = row.style.display === 'none';
+      row.style.display = hidden ? '' : 'none';
+      btn.textContent = hidden ? '▲' : '▼';
+    });
+  });
+
+  // Delete handlers for nested rows
   tbody.querySelectorAll('button[data-product-id]').forEach((btn) => {
     btn.addEventListener('click', () => deletePurchase(btn.dataset.productId, btn.dataset.specId));
   });
@@ -160,6 +209,14 @@ function openPurchaseModal() {
   productSelect.innerHTML = '<option value="">Select product</option>' + (state.products || []).map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
   specSelect.innerHTML = '<option value="">Select spec</option>';
   document.getElementById('purchaseForm').reset();
+  const dateInput = document.getElementById('purchaseDate');
+  if (dateInput) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    dateInput.value = `${yyyy}-${mm}-${dd}`;
+  }
   document.getElementById('purchaseModal').setAttribute('aria-hidden', 'false');
 }
 
@@ -190,13 +247,14 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
   const product_id = document.getElementById('purchaseProduct').value;
   const product_spec_id = document.getElementById('purchaseSpec').value;
   const addQty = Math.max(0, parseInt(document.getElementById('purchaseQty').value, 10) || 0);
+  const purchase_date = document.getElementById('purchaseDate').value || null;
   if (!product_id || !product_spec_id) return;
   const existing = state.inventory.find((i) => i.product_id === product_id);
   const quantity = existing && existing.product_spec_id === product_spec_id ? (existing.quantity || 0) + addQty : addQty;
   try {
     await api('/inventory', {
       method: 'PUT',
-      body: JSON.stringify({ product_id, product_spec_id, quantity }),
+      body: JSON.stringify({ product_id, product_spec_id, quantity, purchase_date }),
     });
     closePurchaseModal();
     await loadAll();
@@ -570,15 +628,6 @@ async function deleteProduct(id) {
   } catch (err) {
     alert(err.message);
   }
-}
-
-// Filters
-const spendOrderFilterEl = document.getElementById('spendOrderFilter');
-if (spendOrderFilterEl) {
-  spendOrderFilterEl.addEventListener('change', (e) => {
-    state.spendOrderFilter = e.target.value || '';
-    renderSpendTable();
-  });
 }
 
 const salesClientFilterEl = document.getElementById('salesClientFilter');

@@ -8,7 +8,7 @@ inventoryRouter.get('/', async (req, res) => {
   try {
     const { data: rows, error } = await supabase
       .from('inventory')
-      .select('id, product_id, product_spec_id, quantity, created_at');
+      .select('id, product_id, product_spec_id, quantity, purchase_date, created_at');
     if (error) throw error;
 
     if (!rows || rows.length === 0) {
@@ -39,6 +39,7 @@ inventoryRouter.get('/', async (req, res) => {
         product_id: r.product_id,
         product_spec_id: r.product_spec_id,
         quantity: r.quantity,
+        purchase_date: r.purchase_date,
         created_at: r.created_at,
         product_name: product.name,
         spec: spec.spec,
@@ -56,7 +57,7 @@ inventoryRouter.get('/', async (req, res) => {
 // PUT /inventory – upsert: body = { product_id, product_spec_id, quantity }
 inventoryRouter.put('/', async (req, res) => {
   try {
-    const { product_id, product_spec_id, quantity } = req.body;
+    const { product_id, product_spec_id, quantity, purchase_date } = req.body;
     if (!product_id || !product_spec_id || quantity == null) {
       return res.status(400).json({ error: 'product_id, product_spec_id, quantity required' });
     }
@@ -74,6 +75,12 @@ inventoryRouter.put('/', async (req, res) => {
       quantity: qty,
       updated_at: new Date().toISOString(),
     };
+    if (purchase_date) {
+      const d = new Date(purchase_date);
+      if (!Number.isNaN(d.getTime())) {
+        row.purchase_date = d.toISOString();
+      }
+    }
 
     if (existing) {
       const { data, error } = await supabase

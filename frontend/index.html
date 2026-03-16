@@ -22,24 +22,13 @@
   <main class="main two-col">
     <section class="panel spend-panel">
       <h2>Spend</h2>
-      <div class="filter-row">
-        <label>Order
-          <select id="spendOrderFilter">
-            <option value="">All</option>
-          </select>
-        </label>
-      </div>
       <div class="table-wrap">
         <table class="data-table" id="spendTable">
           <thead>
             <tr>
               <th>Order</th>
-              <th>Cat.No</th>
-              <th>Product</th>
-              <th>Spec</th>
-              <th>Cost</th>
-              <th>Qty</th>
-              <th>Total</th>
+              <th>Summary</th>
+              <th class="num">Order total</th>
               <th></th>
             </tr>
           </thead>
@@ -162,6 +151,7 @@
           <label>Product <select id="purchaseProduct" required></select></label>
           <label>Spec <select id="purchaseSpec" required></select></label>
           <label>Quantity (kits) <input type="number" id="purchaseQty" min="0" required /></label>
+          <label>Purchase date <input type="date" id="purchaseDate" /></label>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Add purchase</button>
             <button type="button" class="btn" id="cancelPurchase">Cancel</button>
