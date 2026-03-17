@@ -726,8 +726,10 @@ const cancelTotalSpendBtn = document.getElementById('cancelTotalSpend');
 const editTotalRevenueBtn = document.getElementById('editTotalRevenue');
 const totalRevenueModal = document.getElementById('totalRevenueModal');
 const closeTotalRevenueModalBtn = document.getElementById('closeTotalRevenueModal');
-const manualTotalRevenueInputCard = document.getElementById('manualTotalRevenueInputCard');
 const totalRevenueCurrentText = document.getElementById('totalRevenueCurrentText');
+const totalRevenueDeltaInput = document.getElementById('totalRevenueDelta');
+const incrementTotalRevenueBtn = document.getElementById('incrementTotalRevenue');
+const decrementTotalRevenueBtn = document.getElementById('decrementTotalRevenue');
 const totalRevenueReasonInput = document.getElementById('totalRevenueReasonInput');
 const saveTotalRevenueBtn = document.getElementById('saveTotalRevenue');
 const cancelTotalRevenueBtn = document.getElementById('cancelTotalRevenue');
@@ -740,6 +742,7 @@ const closeOverridesHistoryBtn = document.getElementById('closeOverridesHistory'
 const overridesHistoryBody = document.getElementById('overridesHistoryBody');
 
 let pendingManualTotalSpend = null;
+let pendingManualTotalRevenue = null;
 
 if (
   editTotalSpendBtn &&
@@ -854,23 +857,58 @@ if (
 if (
   editTotalRevenueBtn &&
   totalRevenueModal &&
-  manualTotalRevenueInputCard &&
   totalRevenueCurrentText &&
+  totalRevenueDeltaInput &&
+  incrementTotalRevenueBtn &&
+  decrementTotalRevenueBtn &&
   totalRevenueReasonInput &&
   saveTotalRevenueBtn &&
   cancelTotalRevenueBtn
 ) {
-  function openTotalRevenueModal() {
+  function getCurrentTotalRevenueBase() {
     const s = state.summary || {};
-    const base =
-      s.totalRevenue != null && s.totalRevenue !== undefined ? Number(s.totalRevenue) : s.computedTotalRevenue || 0;
+    if (s.totalRevenue != null && s.totalRevenue !== undefined) return Number(s.totalRevenue);
+    if (s.computedTotalRevenue != null && s.computedTotalRevenue !== undefined) return Number(s.computedTotalRevenue);
+    return 0;
+  }
+
+  function applyTotalRevenueDelta(sign) {
+    if (!totalRevenueDeltaInput) return;
+    const base = getCurrentTotalRevenueBase();
+
+    const deltaRaw = totalRevenueDeltaInput.value.trim();
+    if (!deltaRaw) {
+      alert('Enter an adjustment amount.');
+      return;
+    }
+    const delta = parseFloat(deltaRaw);
+    if (Number.isNaN(delta)) {
+      alert('Enter a valid adjustment amount.');
+      return;
+    }
+
+    const next = base + sign * delta;
+    if (!Number.isFinite(next)) {
+      alert('Resulting total is invalid.');
+      return;
+    }
+
+    pendingManualTotalRevenue = next;
+  }
+
+  function openTotalRevenueModal() {
+    const base = getCurrentTotalRevenueBase();
+    pendingManualTotalRevenue = null;
     totalRevenueCurrentText.textContent = formatMoney(base);
-    manualTotalRevenueInputCard.value = base ? String(base.toFixed(2)) : '';
     totalRevenueReasonInput.value = '';
+    if (totalRevenueDeltaInput) {
+      totalRevenueDeltaInput.value = '';
+    }
     totalRevenueModal.setAttribute('aria-hidden', 'false');
   }
 
   function closeTotalRevenueModal() {
+    pendingManualTotalRevenue = null;
     totalRevenueModal.setAttribute('aria-hidden', 'true');
   }
 
@@ -880,18 +918,33 @@ if (
     closeTotalRevenueModalBtn.addEventListener('click', closeTotalRevenueModal);
   }
 
+  incrementTotalRevenueBtn.addEventListener('click', () => applyTotalRevenueDelta(1));
+  decrementTotalRevenueBtn.addEventListener('click', () => applyTotalRevenueDelta(-1));
+
   saveTotalRevenueBtn.addEventListener('click', async () => {
-    const revenueVal = manualTotalRevenueInputCard.value.trim();
     const reason = totalRevenueReasonInput.value.trim();
-    if (!revenueVal) {
-      alert('Enter a value for total revenue.');
+    let v = pendingManualTotalRevenue;
+
+    if (v == null) {
+      const base = getCurrentTotalRevenueBase();
+      const deltaRaw = totalRevenueDeltaInput ? totalRevenueDeltaInput.value.trim() : '';
+      if (!deltaRaw) {
+        alert('Enter an adjustment amount before saving.');
+        return;
+      }
+      const delta = parseFloat(deltaRaw);
+      if (Number.isNaN(delta)) {
+        alert('Enter a valid adjustment amount.');
+        return;
+      }
+      v = base + delta;
+    }
+
+    if (!Number.isFinite(v)) {
+      alert('Resulting total is invalid.');
       return;
     }
-    const v = parseFloat(revenueVal);
-    if (Number.isNaN(v)) {
-      alert('Enter a valid number for total revenue.');
-      return;
-    }
+
     const payload = {
       manual_total_revenue: v,
       reason: reason || undefined,
@@ -901,6 +954,8 @@ if (
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      pendingManualTotalRevenue = null;
+      if (totalRevenueDeltaInput) totalRevenueDeltaInput.value = '';
       closeTotalRevenueModal();
       await loadAll();
     } catch (err) {

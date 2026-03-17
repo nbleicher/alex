@@ -175,8 +175,14 @@
           <span id="totalRevenueCurrentText">$0</span>
         </div>
         <label>
-          Total revenue
-          <input type="number" id="manualTotalRevenueInputCard" step="0.01" placeholder="Total revenue" />
+          Adjustment amount
+          <div class="total-spend-adjust-row">
+            <input type="number" id="totalRevenueDelta" step="0.01" placeholder="Amount" />
+            <div class="total-spend-adjust-buttons">
+              <button type="button" class="btn btn-small btn-adjust" id="decrementTotalRevenue">−</button>
+              <button type="button" class="btn btn-small btn-adjust" id="incrementTotalRevenue">+</button>
+            </div>
+          </div>
         </label>
         <label>
           Reason (optional)
