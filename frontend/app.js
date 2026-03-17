@@ -713,7 +713,9 @@ if (salesClientFilterEl) {
 
 // Total spend / revenue editing (permanent, with history in backend)
 const editTotalSpendBtn = document.getElementById('editTotalSpend');
-const totalSpendEditRow = document.getElementById('totalSpendEditRow');
+const totalSpendModal = document.getElementById('totalSpendModal');
+const closeTotalSpendModalBtn = document.getElementById('closeTotalSpendModal');
+const totalSpendCurrentText = document.getElementById('totalSpendCurrentText');
 const totalSpendDeltaInput = document.getElementById('totalSpendDelta');
 const incrementTotalSpendBtn = document.getElementById('incrementTotalSpend');
 const decrementTotalSpendBtn = document.getElementById('decrementTotalSpend');
@@ -722,8 +724,10 @@ const saveTotalSpendBtn = document.getElementById('saveTotalSpend');
 const cancelTotalSpendBtn = document.getElementById('cancelTotalSpend');
 
 const editTotalRevenueBtn = document.getElementById('editTotalRevenue');
-const totalRevenueEditRow = document.getElementById('totalRevenueEditRow');
+const totalRevenueModal = document.getElementById('totalRevenueModal');
+const closeTotalRevenueModalBtn = document.getElementById('closeTotalRevenueModal');
 const manualTotalRevenueInputCard = document.getElementById('manualTotalRevenueInputCard');
+const totalRevenueCurrentText = document.getElementById('totalRevenueCurrentText');
 const totalRevenueReasonInput = document.getElementById('totalRevenueReasonInput');
 const saveTotalRevenueBtn = document.getElementById('saveTotalRevenue');
 const cancelTotalRevenueBtn = document.getElementById('cancelTotalRevenue');
@@ -739,7 +743,8 @@ let pendingManualTotalSpend = null;
 
 if (
   editTotalSpendBtn &&
-  totalSpendEditRow &&
+  totalSpendModal &&
+  totalSpendCurrentText &&
   totalSpendReasonInput &&
   saveTotalSpendBtn &&
   cancelTotalSpendBtn &&
@@ -778,28 +783,27 @@ if (
     pendingManualTotalSpend = next;
   }
 
-  editTotalSpendBtn.addEventListener('click', () => {
-    const isHidden = totalSpendEditRow.style.display === 'none' || !totalSpendEditRow.style.display;
-
-    if (isHidden) {
-      // Opening the adjustment panel
-      pendingManualTotalSpend = null;
-      totalSpendReasonInput.value = '';
-      if (totalSpendDeltaInput) {
-        totalSpendDeltaInput.value = '';
-      }
-      totalSpendEditRow.style.display = '';
-    } else {
-      // Collapsing the adjustment panel
-      pendingManualTotalSpend = null;
-      totalSpendEditRow.style.display = 'none';
-    }
-  });
-
-  cancelTotalSpendBtn.addEventListener('click', () => {
+  function openTotalSpendModal() {
+    const base = getCurrentTotalSpendBase();
     pendingManualTotalSpend = null;
-    totalSpendEditRow.style.display = 'none';
-  });
+    totalSpendCurrentText.textContent = formatMoney(base);
+    totalSpendReasonInput.value = '';
+    if (totalSpendDeltaInput) {
+      totalSpendDeltaInput.value = '';
+    }
+    totalSpendModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeTotalSpendModal() {
+    pendingManualTotalSpend = null;
+    totalSpendModal.setAttribute('aria-hidden', 'true');
+  }
+
+  editTotalSpendBtn.addEventListener('click', openTotalSpendModal);
+  cancelTotalSpendBtn.addEventListener('click', closeTotalSpendModal);
+  if (closeTotalSpendModalBtn) {
+    closeTotalSpendModalBtn.addEventListener('click', closeTotalSpendModal);
+  }
 
   incrementTotalSpendBtn.addEventListener('click', () => applyTotalSpendDelta(1));
   decrementTotalSpendBtn.addEventListener('click', () => applyTotalSpendDelta(-1));
@@ -838,8 +842,8 @@ if (
         body: JSON.stringify(payload),
       });
       pendingManualTotalSpend = null;
-      totalSpendEditRow.style.display = 'none';
       if (totalSpendDeltaInput) totalSpendDeltaInput.value = '';
+      closeTotalSpendModal();
       await loadAll();
     } catch (err) {
       alert(err.message);
@@ -849,23 +853,32 @@ if (
 
 if (
   editTotalRevenueBtn &&
-  totalRevenueEditRow &&
+  totalRevenueModal &&
   manualTotalRevenueInputCard &&
+  totalRevenueCurrentText &&
   totalRevenueReasonInput &&
   saveTotalRevenueBtn &&
   cancelTotalRevenueBtn
 ) {
-  editTotalRevenueBtn.addEventListener('click', () => {
+  function openTotalRevenueModal() {
     const s = state.summary || {};
-    manualTotalRevenueInputCard.value =
-      s.totalRevenue != null && s.totalRevenue !== undefined ? String(Number(s.totalRevenue).toFixed(2)) : '';
+    const base =
+      s.totalRevenue != null && s.totalRevenue !== undefined ? Number(s.totalRevenue) : s.computedTotalRevenue || 0;
+    totalRevenueCurrentText.textContent = formatMoney(base);
+    manualTotalRevenueInputCard.value = base ? String(base.toFixed(2)) : '';
     totalRevenueReasonInput.value = '';
-    totalRevenueEditRow.style.display = '';
-  });
+    totalRevenueModal.setAttribute('aria-hidden', 'false');
+  }
 
-  cancelTotalRevenueBtn.addEventListener('click', () => {
-    totalRevenueEditRow.style.display = 'none';
-  });
+  function closeTotalRevenueModal() {
+    totalRevenueModal.setAttribute('aria-hidden', 'true');
+  }
+
+  editTotalRevenueBtn.addEventListener('click', openTotalRevenueModal);
+  cancelTotalRevenueBtn.addEventListener('click', closeTotalRevenueModal);
+  if (closeTotalRevenueModalBtn) {
+    closeTotalRevenueModalBtn.addEventListener('click', closeTotalRevenueModal);
+  }
 
   saveTotalRevenueBtn.addEventListener('click', async () => {
     const revenueVal = manualTotalRevenueInputCard.value.trim();
@@ -888,7 +901,7 @@ if (
         method: 'POST',
         body: JSON.stringify(payload),
       });
-      totalRevenueEditRow.style.display = 'none';
+      closeTotalRevenueModal();
       await loadAll();
     } catch (err) {
       alert(err.message);

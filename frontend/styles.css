@@ -349,6 +349,19 @@ body {
   padding: 1rem;
 }
 
+.totals-modal-body .totals-current-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.totals-modal-body .totals-current-row span:last-child {
+  color: var(--accent);
+}
+
 .modal-body label {
   display: block;
   margin-bottom: 0.75rem;

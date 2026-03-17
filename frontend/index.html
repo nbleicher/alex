@@ -41,32 +41,6 @@
         <span id="totalSpend">$0</span>
         <button type="button" class="btn btn-small" id="editTotalSpend">Edit</button>
       </p>
-      <p class="total-line" id="totalSpendEditRow" style="display:none;">
-        <div class="total-spend-edit">
-          <div class="total-spend-edit-row">
-            <label class="total-spend-label">
-              <span class="total-spend-label-title">Adjustment</span>
-              <div class="total-spend-adjust-row">
-                <input type="number" id="totalSpendDelta" step="0.01" placeholder="Amount" />
-                <div class="total-spend-adjust-buttons">
-                  <button type="button" class="btn btn-small btn-adjust" id="decrementTotalSpend">−</button>
-                  <button type="button" class="btn btn-small btn-adjust" id="incrementTotalSpend">+</button>
-                </div>
-              </div>
-            </label>
-          </div>
-          <div class="total-spend-edit-row">
-            <label class="total-spend-label">
-              <span class="total-spend-label-title">Reason (optional)</span>
-              <input type="text" id="totalSpendReasonInput" placeholder="Why you are adjusting this total" />
-            </label>
-          </div>
-          <div class="total-spend-edit-row total-spend-edit-actions">
-            <button type="button" class="btn btn-small btn-primary" id="saveTotalSpend">Save</button>
-            <button type="button" class="btn btn-small" id="cancelTotalSpend">Cancel</button>
-          </div>
-        </div>
-      </p>
     </section>
 
     <section class="panel right-panel">
@@ -100,14 +74,6 @@
           <strong>Total revenue:</strong>
           <span id="totalRevenue">$0</span>
           <button type="button" class="btn btn-small" id="editTotalRevenue">Edit</button>
-        </p>
-        <p class="total-line" id="totalRevenueEditRow" style="display:none;">
-          <span>
-            <input type="number" id="manualTotalRevenueInputCard" step="0.01" placeholder="Total revenue" />
-            <input type="text" id="totalRevenueReasonInput" placeholder="Reason (optional)" />
-            <button type="button" class="btn btn-small btn-primary" id="saveTotalRevenue">Save</button>
-            <button type="button" class="btn btn-small" id="cancelTotalRevenue">Cancel</button>
-          </span>
         </p>
       </section>
     </section>
@@ -158,6 +124,68 @@
           <tbody id="overridesHistoryBody">
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit total spend modal -->
+  <div class="modal" id="totalSpendModal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit total spend</h2>
+        <button type="button" class="btn-close" id="closeTotalSpendModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body totals-modal-body">
+        <div class="totals-current-row">
+          <span>Total spend (current)</span>
+          <span id="totalSpendCurrentText">$0</span>
+        </div>
+        <label>
+          Adjustment amount
+          <div class="total-spend-adjust-row">
+            <input type="number" id="totalSpendDelta" step="0.01" placeholder="Amount" />
+            <div class="total-spend-adjust-buttons">
+              <button type="button" class="btn btn-small btn-adjust" id="decrementTotalSpend">−</button>
+              <button type="button" class="btn btn-small btn-adjust" id="incrementTotalSpend">+</button>
+            </div>
+          </div>
+        </label>
+        <label>
+          Reason (optional)
+          <input type="text" id="totalSpendReasonInput" placeholder="Why you are adjusting this total" />
+        </label>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="saveTotalSpend">Save</button>
+          <button type="button" class="btn" id="cancelTotalSpend">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit total revenue modal -->
+  <div class="modal" id="totalRevenueModal" aria-hidden="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit total revenue</h2>
+        <button type="button" class="btn-close" id="closeTotalRevenueModal" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body totals-modal-body">
+        <div class="totals-current-row">
+          <span>Total revenue (current)</span>
+          <span id="totalRevenueCurrentText">$0</span>
+        </div>
+        <label>
+          Total revenue
+          <input type="number" id="manualTotalRevenueInputCard" step="0.01" placeholder="Total revenue" />
+        </label>
+        <label>
+          Reason (optional)
+          <input type="text" id="totalRevenueReasonInput" placeholder="Reason (optional)" />
+        </label>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="saveTotalRevenue">Save</button>
+          <button type="button" class="btn" id="cancelTotalRevenue">Cancel</button>
+        </div>
       </div>
     </div>
   </div>
