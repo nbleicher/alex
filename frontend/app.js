@@ -716,6 +716,7 @@ const editTotalSpendBtn = document.getElementById('editTotalSpend');
 const totalSpendModal = document.getElementById('totalSpendModal');
 const closeTotalSpendModalBtn = document.getElementById('closeTotalSpendModal');
 const totalSpendCurrentText = document.getElementById('totalSpendCurrentText');
+const totalSpendResultText = document.getElementById('totalSpendResultText');
 const totalSpendDeltaInput = document.getElementById('totalSpendDelta');
 const incrementTotalSpendBtn = document.getElementById('incrementTotalSpend');
 const decrementTotalSpendBtn = document.getElementById('decrementTotalSpend');
@@ -727,6 +728,7 @@ const editTotalRevenueBtn = document.getElementById('editTotalRevenue');
 const totalRevenueModal = document.getElementById('totalRevenueModal');
 const closeTotalRevenueModalBtn = document.getElementById('closeTotalRevenueModal');
 const totalRevenueCurrentText = document.getElementById('totalRevenueCurrentText');
+const totalRevenueResultText = document.getElementById('totalRevenueResultText');
 const totalRevenueDeltaInput = document.getElementById('totalRevenueDelta');
 const incrementTotalRevenueBtn = document.getElementById('incrementTotalRevenue');
 const decrementTotalRevenueBtn = document.getElementById('decrementTotalRevenue');
@@ -748,6 +750,7 @@ if (
   editTotalSpendBtn &&
   totalSpendModal &&
   totalSpendCurrentText &&
+  totalSpendResultText &&
   totalSpendReasonInput &&
   saveTotalSpendBtn &&
   cancelTotalSpendBtn &&
@@ -784,12 +787,18 @@ if (
     }
 
     pendingManualTotalSpend = next;
+    if (totalSpendResultText) {
+      totalSpendResultText.textContent = formatMoney(next);
+    }
   }
 
   function openTotalSpendModal() {
     const base = getCurrentTotalSpendBase();
     pendingManualTotalSpend = null;
     totalSpendCurrentText.textContent = formatMoney(base);
+    if (totalSpendResultText) {
+      totalSpendResultText.textContent = formatMoney(base);
+    }
     totalSpendReasonInput.value = '';
     if (totalSpendDeltaInput) {
       totalSpendDeltaInput.value = '';
@@ -858,6 +867,7 @@ if (
   editTotalRevenueBtn &&
   totalRevenueModal &&
   totalRevenueCurrentText &&
+  totalRevenueResultText &&
   totalRevenueDeltaInput &&
   incrementTotalRevenueBtn &&
   decrementTotalRevenueBtn &&
@@ -894,12 +904,18 @@ if (
     }
 
     pendingManualTotalRevenue = next;
+    if (totalRevenueResultText) {
+      totalRevenueResultText.textContent = formatMoney(next);
+    }
   }
 
   function openTotalRevenueModal() {
     const base = getCurrentTotalRevenueBase();
     pendingManualTotalRevenue = null;
     totalRevenueCurrentText.textContent = formatMoney(base);
+    if (totalRevenueResultText) {
+      totalRevenueResultText.textContent = formatMoney(base);
+    }
     totalRevenueReasonInput.value = '';
     if (totalRevenueDeltaInput) {
       totalRevenueDeltaInput.value = '';
