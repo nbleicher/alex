@@ -145,6 +145,68 @@ body {
   color: var(--accent);
 }
 
+/* Total spend manual edit layout */
+.total-spend-edit {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.total-spend-edit-row {
+  display: block;
+}
+
+.total-spend-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.total-spend-label-title {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.total-spend-label input[type='number'],
+.total-spend-label input[type='text'] {
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+}
+
+.total-spend-adjust-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.total-spend-adjust-row input[type='number'] {
+  flex: 1;
+  background: #303030;
+}
+
+.total-spend-adjust-buttons {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-adjust {
+  background: #333333;
+}
+
+.btn-adjust:hover {
+  background: #3d3d3d;
+}
+
+.total-spend-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
 .right-panel {
   display: flex;
   flex-direction: column;

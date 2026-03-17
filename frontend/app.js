@@ -203,7 +203,12 @@ function renderSpendTable() {
     })
     .join('');
 
-  document.getElementById('totalSpend').textContent = formatMoney(totalSpend);
+  const summary = state.summary || {};
+  const displaySpend =
+    summary.totalSpend != null && summary.totalSpend !== undefined
+      ? Number(summary.totalSpend)
+      : totalSpend;
+  document.getElementById('totalSpend').textContent = formatMoney(displaySpend);
 
   // Toggle handlers
   tbody.querySelectorAll('.toggle-order').forEach((btn) => {

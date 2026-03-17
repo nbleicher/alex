@@ -42,15 +42,36 @@
         <button type="button" class="btn btn-small" id="editTotalSpend">Edit</button>
       </p>
       <p class="total-line" id="totalSpendEditRow" style="display:none;">
-        <span>
-          <input type="number" id="manualTotalSpendInputCard" step="0.01" placeholder="Total spend" />
-          <button type="button" class="btn btn-small" id="decrementTotalSpend">−</button>
-          <input type="number" id="totalSpendDelta" step="0.01" placeholder="Adjustment" />
-          <button type="button" class="btn btn-small" id="incrementTotalSpend">+</button>
-          <input type="text" id="totalSpendReasonInput" placeholder="Reason (optional)" />
-          <button type="button" class="btn btn-small btn-primary" id="saveTotalSpend">Save</button>
-          <button type="button" class="btn btn-small" id="cancelTotalSpend">Cancel</button>
-        </span>
+        <div class="total-spend-edit">
+          <div class="total-spend-edit-row">
+            <label class="total-spend-label">
+              <span class="total-spend-label-title">Total spend</span>
+              <input type="number" id="manualTotalSpendInputCard" step="0.01" />
+            </label>
+          </div>
+          <div class="total-spend-edit-row">
+            <label class="total-spend-label">
+              <span class="total-spend-label-title">Adjustment</span>
+              <div class="total-spend-adjust-row">
+                <input type="number" id="totalSpendDelta" step="0.01" placeholder="Amount" />
+                <div class="total-spend-adjust-buttons">
+                  <button type="button" class="btn btn-small btn-adjust" id="decrementTotalSpend">−</button>
+                  <button type="button" class="btn btn-small btn-adjust" id="incrementTotalSpend">+</button>
+                </div>
+              </div>
+            </label>
+          </div>
+          <div class="total-spend-edit-row">
+            <label class="total-spend-label">
+              <span class="total-spend-label-title">Reason (optional)</span>
+              <input type="text" id="totalSpendReasonInput" placeholder="Why you are adjusting this total" />
+            </label>
+          </div>
+          <div class="total-spend-edit-row total-spend-edit-actions">
+            <button type="button" class="btn btn-small btn-primary" id="saveTotalSpend">Save</button>
+            <button type="button" class="btn btn-small" id="cancelTotalSpend">Cancel</button>
+          </div>
+        </div>
       </p>
     </section>
 
