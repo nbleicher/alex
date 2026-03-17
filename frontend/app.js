@@ -714,7 +714,6 @@ if (salesClientFilterEl) {
 // Total spend / revenue editing (permanent, with history in backend)
 const editTotalSpendBtn = document.getElementById('editTotalSpend');
 const totalSpendEditRow = document.getElementById('totalSpendEditRow');
-const manualTotalSpendInputCard = document.getElementById('manualTotalSpendInputCard');
 const totalSpendDeltaInput = document.getElementById('totalSpendDelta');
 const incrementTotalSpendBtn = document.getElementById('incrementTotalSpend');
 const decrementTotalSpendBtn = document.getElementById('decrementTotalSpend');
@@ -736,10 +735,11 @@ const overridesHistoryModal = document.getElementById('overridesHistoryModal');
 const closeOverridesHistoryBtn = document.getElementById('closeOverridesHistory');
 const overridesHistoryBody = document.getElementById('overridesHistoryBody');
 
+let pendingManualTotalSpend = null;
+
 if (
   editTotalSpendBtn &&
   totalSpendEditRow &&
-  manualTotalSpendInputCard &&
   totalSpendReasonInput &&
   saveTotalSpendBtn &&
   cancelTotalSpendBtn &&
@@ -747,17 +747,16 @@ if (
   incrementTotalSpendBtn &&
   decrementTotalSpendBtn
 ) {
-  function applyTotalSpendDelta(sign) {
-    if (!manualTotalSpendInputCard || !totalSpendDeltaInput) return;
+  function getCurrentTotalSpendBase() {
     const s = state.summary || {};
+    if (s.totalSpend != null && s.totalSpend !== undefined) return Number(s.totalSpend);
+    if (s.computedTotalSpend != null && s.computedTotalSpend !== undefined) return Number(s.computedTotalSpend);
+    return 0;
+  }
 
-    const currentRaw = manualTotalSpendInputCard.value.trim();
-    const base =
-      currentRaw !== ''
-        ? parseFloat(currentRaw)
-        : s.totalSpend != null && s.totalSpend !== undefined
-          ? Number(s.totalSpend)
-          : 0;
+  function applyTotalSpendDelta(sign) {
+    if (!totalSpendDeltaInput) return;
+    const base = getCurrentTotalSpendBase();
 
     const deltaRaw = totalSpendDeltaInput.value.trim();
     if (!deltaRaw) {
@@ -776,13 +775,11 @@ if (
       return;
     }
 
-    manualTotalSpendInputCard.value = next.toFixed(2);
+    pendingManualTotalSpend = next;
   }
 
   editTotalSpendBtn.addEventListener('click', () => {
-    const s = state.summary || {};
-    manualTotalSpendInputCard.value =
-      s.totalSpend != null && s.totalSpend !== undefined ? String(Number(s.totalSpend).toFixed(2)) : '';
+    pendingManualTotalSpend = null;
     totalSpendReasonInput.value = '';
     if (totalSpendDeltaInput) {
       totalSpendDeltaInput.value = '';
@@ -791,6 +788,7 @@ if (
   });
 
   cancelTotalSpendBtn.addEventListener('click', () => {
+    pendingManualTotalSpend = null;
     totalSpendEditRow.style.display = 'none';
   });
 
@@ -798,17 +796,29 @@ if (
   decrementTotalSpendBtn.addEventListener('click', () => applyTotalSpendDelta(-1));
 
   saveTotalSpendBtn.addEventListener('click', async () => {
-    const spendVal = manualTotalSpendInputCard.value.trim();
     const reason = totalSpendReasonInput.value.trim();
-    if (!spendVal) {
-      alert('Enter a value for total spend.');
+    let v = pendingManualTotalSpend;
+
+    if (v == null) {
+      const base = getCurrentTotalSpendBase();
+      const deltaRaw = totalSpendDeltaInput ? totalSpendDeltaInput.value.trim() : '';
+      if (!deltaRaw) {
+        alert('Enter an adjustment amount before saving.');
+        return;
+      }
+      const delta = parseFloat(deltaRaw);
+      if (Number.isNaN(delta)) {
+        alert('Enter a valid adjustment amount.');
+        return;
+      }
+      v = base + delta;
+    }
+
+    if (!Number.isFinite(v)) {
+      alert('Resulting total is invalid.');
       return;
     }
-    const v = parseFloat(spendVal);
-    if (Number.isNaN(v)) {
-      alert('Enter a valid number for total spend.');
-      return;
-    }
+
     const payload = {
       manual_total_spend: v,
       reason: reason || undefined,
@@ -818,7 +828,9 @@ if (
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      pendingManualTotalSpend = null;
       totalSpendEditRow.style.display = 'none';
+      if (totalSpendDeltaInput) totalSpendDeltaInput.value = '';
       await loadAll();
     } catch (err) {
       alert(err.message);
