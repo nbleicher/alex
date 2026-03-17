@@ -710,6 +710,9 @@ if (salesClientFilterEl) {
 const editTotalSpendBtn = document.getElementById('editTotalSpend');
 const totalSpendEditRow = document.getElementById('totalSpendEditRow');
 const manualTotalSpendInputCard = document.getElementById('manualTotalSpendInputCard');
+const totalSpendDeltaInput = document.getElementById('totalSpendDelta');
+const incrementTotalSpendBtn = document.getElementById('incrementTotalSpend');
+const decrementTotalSpendBtn = document.getElementById('decrementTotalSpend');
 const totalSpendReasonInput = document.getElementById('totalSpendReasonInput');
 const saveTotalSpendBtn = document.getElementById('saveTotalSpend');
 const cancelTotalSpendBtn = document.getElementById('cancelTotalSpend');
@@ -734,19 +737,60 @@ if (
   manualTotalSpendInputCard &&
   totalSpendReasonInput &&
   saveTotalSpendBtn &&
-  cancelTotalSpendBtn
+  cancelTotalSpendBtn &&
+  totalSpendDeltaInput &&
+  incrementTotalSpendBtn &&
+  decrementTotalSpendBtn
 ) {
+  function applyTotalSpendDelta(sign) {
+    if (!manualTotalSpendInputCard || !totalSpendDeltaInput) return;
+    const s = state.summary || {};
+
+    const currentRaw = manualTotalSpendInputCard.value.trim();
+    const base =
+      currentRaw !== ''
+        ? parseFloat(currentRaw)
+        : s.totalSpend != null && s.totalSpend !== undefined
+          ? Number(s.totalSpend)
+          : 0;
+
+    const deltaRaw = totalSpendDeltaInput.value.trim();
+    if (!deltaRaw) {
+      alert('Enter an adjustment amount.');
+      return;
+    }
+    const delta = parseFloat(deltaRaw);
+    if (Number.isNaN(delta)) {
+      alert('Enter a valid adjustment amount.');
+      return;
+    }
+
+    const next = base + sign * delta;
+    if (!Number.isFinite(next)) {
+      alert('Resulting total is invalid.');
+      return;
+    }
+
+    manualTotalSpendInputCard.value = next.toFixed(2);
+  }
+
   editTotalSpendBtn.addEventListener('click', () => {
     const s = state.summary || {};
     manualTotalSpendInputCard.value =
       s.totalSpend != null && s.totalSpend !== undefined ? String(Number(s.totalSpend).toFixed(2)) : '';
     totalSpendReasonInput.value = '';
+    if (totalSpendDeltaInput) {
+      totalSpendDeltaInput.value = '';
+    }
     totalSpendEditRow.style.display = '';
   });
 
   cancelTotalSpendBtn.addEventListener('click', () => {
     totalSpendEditRow.style.display = 'none';
   });
+
+  incrementTotalSpendBtn.addEventListener('click', () => applyTotalSpendDelta(1));
+  decrementTotalSpendBtn.addEventListener('click', () => applyTotalSpendDelta(-1));
 
   saveTotalSpendBtn.addEventListener('click', async () => {
     const spendVal = manualTotalSpendInputCard.value.trim();

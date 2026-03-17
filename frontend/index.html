@@ -44,6 +44,9 @@
       <p class="total-line" id="totalSpendEditRow" style="display:none;">
         <span>
           <input type="number" id="manualTotalSpendInputCard" step="0.01" placeholder="Total spend" />
+          <button type="button" class="btn btn-small" id="decrementTotalSpend">−</button>
+          <input type="number" id="totalSpendDelta" step="0.01" placeholder="Adjustment" />
+          <button type="button" class="btn btn-small" id="incrementTotalSpend">+</button>
           <input type="text" id="totalSpendReasonInput" placeholder="Reason (optional)" />
           <button type="button" class="btn btn-small btn-primary" id="saveTotalSpend">Save</button>
           <button type="button" class="btn btn-small" id="cancelTotalSpend">Cancel</button>
