@@ -779,12 +779,21 @@ if (
   }
 
   editTotalSpendBtn.addEventListener('click', () => {
-    pendingManualTotalSpend = null;
-    totalSpendReasonInput.value = '';
-    if (totalSpendDeltaInput) {
-      totalSpendDeltaInput.value = '';
+    const isHidden = totalSpendEditRow.style.display === 'none' || !totalSpendEditRow.style.display;
+
+    if (isHidden) {
+      // Opening the adjustment panel
+      pendingManualTotalSpend = null;
+      totalSpendReasonInput.value = '';
+      if (totalSpendDeltaInput) {
+        totalSpendDeltaInput.value = '';
+      }
+      totalSpendEditRow.style.display = '';
+    } else {
+      // Collapsing the adjustment panel
+      pendingManualTotalSpend = null;
+      totalSpendEditRow.style.display = 'none';
     }
-    totalSpendEditRow.style.display = '';
   });
 
   cancelTotalSpendBtn.addEventListener('click', () => {
