@@ -25,6 +25,7 @@ create table if not exists inventory (
   product_id uuid not null references products(id) on delete cascade,
   product_spec_id uuid not null references product_specs(id) on delete cascade,
   quantity integer not null default 0 check (quantity >= 0),
+  status text,
   purchase_date timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
@@ -37,6 +38,8 @@ alter table if exists inventory drop constraint if exists inventory_product_id_k
 drop index if exists inventory_product_id_key;
 alter table if exists inventory
   add constraint inventory_product_id_product_spec_id_key unique (product_id, product_spec_id);
+alter table if exists inventory add column if not exists status text;
+update inventory set status = null where trim(coalesce(status, '')) = '';
 
 -- Sales (Purpose 2)
 create table if not exists sales (

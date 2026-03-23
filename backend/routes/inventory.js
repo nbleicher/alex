@@ -2,13 +2,14 @@ import { Router } from 'express';
 import { supabase } from '../db.js';
 
 export const inventoryRouter = Router();
+const ALLOWED_STATUSES = new Set(['Delivered', 'Shipped', 'Processing', 'Scammed']);
 
 // GET /inventory – list all inventory rows with product + spec + price for display
 inventoryRouter.get('/', async (req, res) => {
   try {
     const { data: rows, error } = await supabase
       .from('inventory')
-      .select('id, product_id, product_spec_id, quantity, purchase_date, created_at');
+      .select('id, product_id, product_spec_id, quantity, status, purchase_date, created_at');
     if (error) throw error;
 
     if (!rows || rows.length === 0) {
@@ -39,6 +40,7 @@ inventoryRouter.get('/', async (req, res) => {
         product_id: r.product_id,
         product_spec_id: r.product_spec_id,
         quantity: r.quantity,
+        status: r.status || null,
         purchase_date: r.purchase_date,
         created_at: r.created_at,
         product_name: product.name,
@@ -57,7 +59,7 @@ inventoryRouter.get('/', async (req, res) => {
 // PUT /inventory – upsert: body = { product_id, product_spec_id, quantity }
 inventoryRouter.put('/', async (req, res) => {
   try {
-    const { product_id, product_spec_id, quantity, purchase_date } = req.body;
+    const { product_id, product_spec_id, quantity, purchase_date, status } = req.body;
     if (!product_id || !product_spec_id || quantity == null) {
       return res.status(400).json({ error: 'product_id, product_spec_id, quantity required' });
     }
@@ -77,6 +79,19 @@ inventoryRouter.put('/', async (req, res) => {
       quantity: qty,
       updated_at: new Date().toISOString(),
     };
+    if (status !== undefined) {
+      if (status == null || String(status).trim() === '') {
+        row.status = null;
+      } else {
+        const normalizedStatus = String(status).trim();
+        if (!ALLOWED_STATUSES.has(normalizedStatus)) {
+          return res.status(400).json({
+            error: 'status must be one of Delivered, Shipped, Processing, Scammed',
+          });
+        }
+        row.status = normalizedStatus;
+      }
+    }
     if (purchase_date) {
       const d = new Date(purchase_date);
       if (!Number.isNaN(d.getTime())) {

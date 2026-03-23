@@ -42,6 +42,7 @@ let state = {
     latestOverride: null,
   },
   salesClientFilter: '',
+  salesShowAll: false,
 };
 
 async function loadAll() {
@@ -86,6 +87,12 @@ function render() {
 function renderSpendTable() {
   const tbody = document.getElementById('spendBody');
   const items = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
+  const statusClassByStatus = {
+    Delivered: 'status-delivered',
+    Shipped: 'status-shipped',
+    Processing: 'status-processing',
+    Scammed: 'status-scammed',
+  };
 
   // Group by order date: prefer purchase_date, fall back to created_at
   const groups = {};
@@ -138,13 +145,22 @@ function renderSpendTable() {
             }
           }
           return `
-              <tr>
+              <tr class="${statusClassByStatus[r.status] || ''}">
                 <td>${escapeHtml(r.cat_no || '-')}</td>
                 <td>${escapeHtml(r.product_name || '')}</td>
                 <td>${escapeHtml(r.spec || '')}</td>
                 <td class="num">${formatMoney(r.price)}</td>
                 <td class="num">${r.quantity}</td>
                 <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
+                <td>
+                  <select data-status-select-row="${r.id}">
+                    <option value="" ${!r.status ? 'selected' : ''}>—</option>
+                    <option value="Delivered" ${r.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                    <option value="Shipped" ${r.status === 'Shipped' ? 'selected' : ''}>Shipped</option>
+                    <option value="Processing" ${r.status === 'Processing' ? 'selected' : ''}>Processing</option>
+                    <option value="Scammed" ${r.status === 'Scammed' ? 'selected' : ''}>Scammed</option>
+                  </select>
+                </td>
                 <td>
                   <button type="button" class="btn btn-small" data-edit-row-id="${r.id}">Edit</button>
                   <button type="button" class="btn btn-small btn-delete"
@@ -183,6 +199,7 @@ function renderSpendTable() {
                   <th class="num">Cost</th>
                   <th class="num">Qty</th>
                   <th class="num">Total</th>
+                  <th>Status</th>
                   <th></th>
                 </tr>
               </thead>
@@ -270,6 +287,30 @@ function renderSpendTable() {
       }
     });
   });
+
+  tbody.querySelectorAll('select[data-status-select-row]').forEach((select) => {
+    select.addEventListener('change', async () => {
+      const id = select.dataset.statusSelectRow;
+      const row = items.find((r) => r.id === id);
+      if (!row) return;
+      const nextStatus = select.value || null;
+      try {
+        await api('/inventory', {
+          method: 'PUT',
+          body: JSON.stringify({
+            product_id: row.product_id,
+            product_spec_id: row.product_spec_id,
+            quantity: row.quantity,
+            purchase_date: row.purchase_date,
+            status: nextStatus,
+          }),
+        });
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
 }
 
 async function deletePurchase(productId, productSpecId) {
@@ -349,6 +390,7 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
 function renderSalesTable() {
   const tbody = document.getElementById('salesBody');
   const filterSelect = document.getElementById('salesClientFilter');
+  const toggleSalesRowsBtn = document.getElementById('toggleSalesRows');
 
   // Build client filter options
   const allSales = state.sales || [];
@@ -371,7 +413,7 @@ function renderSalesTable() {
     if (current) filterSelect.value = current;
   }
 
-  // Filter and sort: cluster by client then sale date
+  // Filter and sort by date descending (newest first)
   const filtered = allSales
     .filter((s) => {
       if (!state.salesClientFilter) return true;
@@ -380,21 +422,19 @@ function renderSalesTable() {
     })
     .slice()
     .sort((a, b) => {
-      const ca = (a.client_name || '').toLowerCase();
-      const cb = (b.client_name || '').toLowerCase();
-      if (ca < cb) return -1;
-      if (ca > cb) return 1;
       const da = new Date(a.created_at || 0).getTime();
       const db = new Date(b.created_at || 0).getTime();
-      return db - da; // newest first within client
+      return db - da;
     });
+
+  const visibleSales = state.salesShowAll ? filtered : filtered.slice(0, 10);
 
   let totalRevenue = 0;
   filtered.forEach((s) => {
     totalRevenue += Number(s.revenue) || 0;
   });
 
-  tbody.innerHTML = filtered
+  tbody.innerHTML = visibleSales
     .map((s) => {
       let dateLabel = '';
       if (s.created_at) {
@@ -420,6 +460,15 @@ function renderSalesTable() {
     })
     .join('');
   document.getElementById('totalRevenue').textContent = formatMoney(totalRevenue);
+  if (toggleSalesRowsBtn) {
+    if (filtered.length > 10) {
+      toggleSalesRowsBtn.style.display = '';
+      toggleSalesRowsBtn.textContent = state.salesShowAll ? 'Show less' : 'View all';
+    } else {
+      toggleSalesRowsBtn.style.display = 'none';
+      state.salesShowAll = false;
+    }
+  }
   tbody.querySelectorAll('[data-sale-id]').forEach((btn) => {
     btn.addEventListener('click', () => deleteSale(btn.dataset.saleId));
   });
@@ -706,6 +755,15 @@ const salesClientFilterEl = document.getElementById('salesClientFilter');
 if (salesClientFilterEl) {
   salesClientFilterEl.addEventListener('change', (e) => {
     state.salesClientFilter = e.target.value || '';
+    state.salesShowAll = false;
+    renderSalesTable();
+  });
+}
+
+const toggleSalesRowsBtn = document.getElementById('toggleSalesRows');
+if (toggleSalesRowsBtn) {
+  toggleSalesRowsBtn.addEventListener('click', () => {
+    state.salesShowAll = !state.salesShowAll;
     renderSalesTable();
   });
 }

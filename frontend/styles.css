@@ -114,6 +114,38 @@ body {
   background: rgba(255,255,255,0.03);
 }
 
+.nested-table tbody tr.status-delivered {
+  background: rgba(34, 197, 94, 0.2);
+}
+
+.nested-table tbody tr.status-shipped {
+  background: rgba(194, 86, 24, 0.28);
+}
+
+.nested-table tbody tr.status-processing {
+  background: rgba(251, 146, 60, 0.2);
+}
+
+.nested-table tbody tr.status-scammed {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.nested-table tbody tr.status-delivered:hover {
+  background: rgba(34, 197, 94, 0.28);
+}
+
+.nested-table tbody tr.status-shipped:hover {
+  background: rgba(194, 86, 24, 0.36);
+}
+
+.nested-table tbody tr.status-processing:hover {
+  background: rgba(251, 146, 60, 0.28);
+}
+
+.nested-table tbody tr.status-scammed:hover {
+  background: rgba(239, 68, 68, 0.28);
+}
+
 .data-table input,
 .data-table select {
   background: var(--input-bg);
