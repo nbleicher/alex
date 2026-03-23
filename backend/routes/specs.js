@@ -46,20 +46,32 @@ specsRouter.post('/:id/specs', async (req, res) => {
 // PATCH /specs/:id (mount this router at /specs)
 specsRouter.patch('/:id', async (req, res) => {
   try {
+    if (!req.params.id) {
+      return res.status(400).json({ error: 'Spec id is required' });
+    }
     const { spec, price, cat_no } = req.body;
     const updates = {};
     if (spec !== undefined) updates.spec = String(spec).trim();
-    if (price !== undefined) updates.price = Number(price);
+    if (price !== undefined) {
+      const nextPrice = Number(price);
+      if (!Number.isFinite(nextPrice)) {
+        return res.status(400).json({ error: 'price must be a number' });
+      }
+      updates.price = nextPrice;
+    }
     if (cat_no !== undefined) {
       const nextCatNo = cat_no == null ? '' : String(cat_no).trim();
       updates.cat_no = nextCatNo || null;
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
     }
     const { data, error } = await supabase
       .from('product_specs')
       .update(updates)
       .eq('id', req.params.id)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Spec not found' });
     res.json(data);
