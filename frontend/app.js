@@ -42,7 +42,6 @@ let state = {
     latestOverride: null,
   },
   salesClientFilter: '',
-  salesShowAll: false,
 };
 
 async function loadAll() {
@@ -133,6 +132,7 @@ function renderSpendTable() {
         });
       })();
       const summaryText = `${rows.length} product${rows.length === 1 ? '' : 's'}`;
+      const orderStatus = rows.find((r) => r.status)?.status || '';
 
       const detailsRows = rows
         .map((r) => {
@@ -145,22 +145,13 @@ function renderSpendTable() {
             }
           }
           return `
-              <tr class="${statusClassByStatus[r.status] || ''}">
+              <tr class="${statusClassByStatus[orderStatus] || ''}">
                 <td>${escapeHtml(r.cat_no || '-')}</td>
                 <td>${escapeHtml(r.product_name || '')}</td>
                 <td>${escapeHtml(r.spec || '')}</td>
                 <td class="num">${formatMoney(r.price)}</td>
                 <td class="num">${r.quantity}</td>
                 <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
-                <td>
-                  <select data-status-select-row="${r.id}">
-                    <option value="" ${!r.status ? 'selected' : ''}>—</option>
-                    <option value="Delivered" ${r.status === 'Delivered' ? 'selected' : ''}>Delivered</option>
-                    <option value="Shipped" ${r.status === 'Shipped' ? 'selected' : ''}>Shipped</option>
-                    <option value="Processing" ${r.status === 'Processing' ? 'selected' : ''}>Processing</option>
-                    <option value="Scammed" ${r.status === 'Scammed' ? 'selected' : ''}>Scammed</option>
-                  </select>
-                </td>
                 <td>
                   <button type="button" class="btn btn-small" data-edit-row-id="${r.id}">Edit</button>
                   <button type="button" class="btn btn-small btn-delete"
@@ -179,17 +170,26 @@ function renderSpendTable() {
         .join('');
 
       return `
-        <tr class="order-row" data-order-id="${orderId}">
+        <tr class="order-row ${statusClassByStatus[orderStatus] || ''}" data-order-id="${orderId}" data-order-date-key="${dateKey}">
           <td>
             <button type="button" class="btn btn-small toggle-order" data-order-id="${orderId}">▼</button>
             ${escapeHtml(orderLabel)}
+          </td>
+          <td>
+            <select data-order-status-date-key="${dateKey}">
+              <option value="" ${!orderStatus ? 'selected' : ''}>—</option>
+              <option value="Delivered" ${orderStatus === 'Delivered' ? 'selected' : ''}>Delivered</option>
+              <option value="Shipped" ${orderStatus === 'Shipped' ? 'selected' : ''}>Shipped</option>
+              <option value="Processing" ${orderStatus === 'Processing' ? 'selected' : ''}>Processing</option>
+              <option value="Scammed" ${orderStatus === 'Scammed' ? 'selected' : ''}>Scammed</option>
+            </select>
           </td>
           <td>${escapeHtml(summaryText)}</td>
           <td class="num">${formatMoney(orderTotal)}</td>
           <td></td>
         </tr>
         <tr class="order-details" data-order-id="${orderId}" style="display:none;">
-          <td colspan="4">
+          <td colspan="5">
             <table class="nested-table">
               <thead>
                 <tr>
@@ -199,7 +199,6 @@ function renderSpendTable() {
                   <th class="num">Cost</th>
                   <th class="num">Qty</th>
                   <th class="num">Total</th>
-                  <th>Status</th>
                   <th></th>
                 </tr>
               </thead>
@@ -288,23 +287,28 @@ function renderSpendTable() {
     });
   });
 
-  tbody.querySelectorAll('select[data-status-select-row]').forEach((select) => {
+  tbody.querySelectorAll('select[data-order-status-date-key]').forEach((select) => {
     select.addEventListener('change', async () => {
-      const id = select.dataset.statusSelectRow;
-      const row = items.find((r) => r.id === id);
-      if (!row) return;
+      const dateKey = select.dataset.orderStatusDateKey;
+      if (!dateKey) return;
       const nextStatus = select.value || null;
+      const groupRows = groups[dateKey] || [];
+      if (groupRows.length === 0) return;
       try {
-        await api('/inventory', {
-          method: 'PUT',
-          body: JSON.stringify({
-            product_id: row.product_id,
-            product_spec_id: row.product_spec_id,
-            quantity: row.quantity,
-            purchase_date: row.purchase_date,
-            status: nextStatus,
-          }),
-        });
+        await Promise.all(
+          groupRows.map((row) =>
+            api('/inventory', {
+              method: 'PUT',
+              body: JSON.stringify({
+                product_id: row.product_id,
+                product_spec_id: row.product_spec_id,
+                quantity: row.quantity,
+                purchase_date: row.purchase_date,
+                status: nextStatus,
+              }),
+            }),
+          ),
+        );
         await loadAll();
       } catch (err) {
         alert(err.message);
@@ -390,7 +394,6 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
 function renderSalesTable() {
   const tbody = document.getElementById('salesBody');
   const filterSelect = document.getElementById('salesClientFilter');
-  const toggleSalesRowsBtn = document.getElementById('toggleSalesRows');
 
   // Build client filter options
   const allSales = state.sales || [];
@@ -413,62 +416,105 @@ function renderSalesTable() {
     if (current) filterSelect.value = current;
   }
 
-  // Filter and sort by date descending (newest first)
   const filtered = allSales
     .filter((s) => {
       if (!state.salesClientFilter) return true;
       const key = (s.client_name || '(none)').trim() || '(none)';
       return key === state.salesClientFilter;
-    })
-    .slice()
-    .sort((a, b) => {
-      const da = new Date(a.created_at || 0).getTime();
-      const db = new Date(b.created_at || 0).getTime();
-      return db - da;
     });
-
-  const visibleSales = state.salesShowAll ? filtered : filtered.slice(0, 10);
 
   let totalRevenue = 0;
   filtered.forEach((s) => {
     totalRevenue += Number(s.revenue) || 0;
   });
 
-  tbody.innerHTML = visibleSales
-    .map((s) => {
-      let dateLabel = '';
-      if (s.created_at) {
-        const d = new Date(s.created_at);
-        if (!Number.isNaN(d.getTime())) {
-          dateLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-        }
-      }
-      const clientLabel = (s.client_name || '').trim() || '—';
+  const groups = {};
+  filtered.forEach((s) => {
+    const clientKey = (s.client_name || '(none)').trim() || '(none)';
+    if (!groups[clientKey]) groups[clientKey] = [];
+    groups[clientKey].push(s);
+  });
+  const clientKeys = Object.keys(groups).sort((a, b) => {
+    const maxA = Math.max(...groups[a].map((s) => new Date(s.created_at || 0).getTime()));
+    const maxB = Math.max(...groups[b].map((s) => new Date(s.created_at || 0).getTime()));
+    return maxB - maxA;
+  });
+  tbody.innerHTML = clientKeys
+    .map((clientKey, idx) => {
+      const groupId = `client-${idx}`;
+      const rows = groups[clientKey]
+        .slice()
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+      const groupRevenue = rows.reduce((sum, s) => sum + (Number(s.revenue) || 0), 0);
+      const detailsRows = rows
+        .map((s) => {
+          let dateLabel = '';
+          if (s.created_at) {
+            const d = new Date(s.created_at);
+            if (!Number.isNaN(d.getTime())) {
+              dateLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+          }
+          return `
+            <tr>
+              <td>${escapeHtml(dateLabel || '-')}</td>
+              <td>${escapeHtml((s.client_name || '').trim() || '—')}</td>
+              <td>${escapeHtml(s.product_name || '')} ${escapeHtml(s.spec || '')}</td>
+              <td class="num">${s.quantity_sold}</td>
+              <td class="num">${formatMoney(s.sell_price_per_sub)}</td>
+              <td class="num">${formatMoney(s.revenue)}</td>
+              <td>
+                <button type="button" class="btn btn-small" data-edit-sale-id="${s.id}">Edit</button>
+                <button type="button" class="btn btn-small btn-delete" data-sale-id="${s.id}">Delete</button>
+              </td>
+            </tr>`;
+        })
+        .join('');
+
       return `
-    <tr>
-      <td>${escapeHtml(dateLabel || '-')}</td>
-      <td>${escapeHtml(clientLabel)}</td>
-      <td>${escapeHtml(s.product_name || '')} ${escapeHtml(s.spec || '')}</td>
-      <td class="num">${s.quantity_sold}</td>
-      <td class="num">${formatMoney(s.sell_price_per_sub)}</td>
-      <td class="num">${formatMoney(s.revenue)}</td>
-      <td>
-        <button type="button" class="btn btn-small" data-edit-sale-id="${s.id}">Edit</button>
-        <button type="button" class="btn btn-small btn-delete" data-sale-id="${s.id}">Delete</button>
-      </td>
-    </tr>`;
+        <tr class="order-row" data-sales-group-id="${groupId}">
+          <td>
+            <button type="button" class="btn btn-small toggle-sales-group" data-sales-group-id="${groupId}">▼</button>
+            ${escapeHtml(clientKey === '(none)' ? '—' : clientKey)}
+          </td>
+          <td>${rows.length} sale${rows.length === 1 ? '' : 's'}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="num">${formatMoney(groupRevenue)}</td>
+          <td></td>
+        </tr>
+        <tr class="order-details" data-sales-group-id="${groupId}" style="display:none;">
+          <td colspan="7">
+            <table class="nested-table">
+              <thead>
+                <tr>
+                  <th>Sale date</th>
+                  <th>Client</th>
+                  <th>Item</th>
+                  <th>Qty sold</th>
+                  <th>Sell price</th>
+                  <th>Revenue</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>${detailsRows}</tbody>
+            </table>
+          </td>
+        </tr>`;
     })
     .join('');
   document.getElementById('totalRevenue').textContent = formatMoney(totalRevenue);
-  if (toggleSalesRowsBtn) {
-    if (filtered.length > 10) {
-      toggleSalesRowsBtn.style.display = '';
-      toggleSalesRowsBtn.textContent = state.salesShowAll ? 'Show less' : 'View all';
-    } else {
-      toggleSalesRowsBtn.style.display = 'none';
-      state.salesShowAll = false;
-    }
-  }
+  tbody.querySelectorAll('.toggle-sales-group').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.salesGroupId;
+      const row = tbody.querySelector(`.order-details[data-sales-group-id="${id}"]`);
+      if (!row) return;
+      const hidden = row.style.display === 'none';
+      row.style.display = hidden ? '' : 'none';
+      btn.textContent = hidden ? '▲' : '▼';
+    });
+  });
   tbody.querySelectorAll('[data-sale-id]').forEach((btn) => {
     btn.addEventListener('click', () => deleteSale(btn.dataset.saleId));
   });
@@ -755,15 +801,6 @@ const salesClientFilterEl = document.getElementById('salesClientFilter');
 if (salesClientFilterEl) {
   salesClientFilterEl.addEventListener('change', (e) => {
     state.salesClientFilter = e.target.value || '';
-    state.salesShowAll = false;
-    renderSalesTable();
-  });
-}
-
-const toggleSalesRowsBtn = document.getElementById('toggleSalesRows');
-if (toggleSalesRowsBtn) {
-  toggleSalesRowsBtn.addEventListener('click', () => {
-    state.salesShowAll = !state.salesShowAll;
     renderSalesTable();
   });
 }
