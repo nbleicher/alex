@@ -77,6 +77,14 @@ function formatMoney(n) {
   return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value == null) return 0;
+  const cleaned = String(value).replace(/[^0-9.-]/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function render() {
   renderSpendTable();
   renderSalesTable();
@@ -108,7 +116,7 @@ function renderSpendTable() {
   const orderKeys = Object.keys(groups).sort(); // oldest first; reverse if you want newest first
 
   const totalSpend = items.reduce(
-    (sum, r) => sum + (Number(r.price) || 0) * (r.quantity || 0),
+    (sum, r) => sum + toNumber(r.price) * toNumber(r.quantity),
     0,
   );
 
@@ -117,7 +125,7 @@ function renderSpendTable() {
       const orderId = `order-${idx}`;
       const rows = groups[dateKey];
       const orderTotal = rows.reduce(
-        (sum, r) => sum + (Number(r.price) || 0) * (r.quantity || 0),
+        (sum, r) => sum + toNumber(r.price) * toNumber(r.quantity),
         0,
       );
       const orderLabel = (() => {
@@ -149,7 +157,7 @@ function renderSpendTable() {
                 <td>${escapeHtml(r.spec || '')}</td>
                 <td class="num">${formatMoney(r.price)}</td>
                 <td class="num">${r.quantity}</td>
-                <td class="num">${formatMoney((Number(r.price) || 0) * (r.quantity || 0))}</td>
+                <td class="num">${formatMoney(toNumber(r.price) * toNumber(r.quantity))}</td>
                 <td>
                   <button type="button" class="btn btn-small" data-edit-row-id="${r.id}">Edit</button>
                   <button type="button" class="btn btn-small btn-delete"

@@ -3,6 +3,13 @@ import { supabase } from '../db.js';
 
 export const inventoryRouter = Router();
 const ALLOWED_STATUSES = new Set(['Delivered', 'Shipped', 'Processing', 'Scammed']);
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value == null) return 0;
+  const cleaned = String(value).replace(/[^0-9.-]/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 // GET /inventory – list all inventory rows with product + spec + price for display
 inventoryRouter.get('/', async (req, res) => {
@@ -34,7 +41,7 @@ inventoryRouter.get('/', async (req, res) => {
     const list = rows.map((r) => {
       const product = productsBy[r.product_id] || {};
       const spec = specsBy[r.product_spec_id] || {};
-      const price = spec.price ? Number(spec.price) : 0;
+      const price = toNumber(spec.price);
       return {
         id: r.id,
         product_id: r.product_id,
@@ -47,7 +54,7 @@ inventoryRouter.get('/', async (req, res) => {
         spec: spec.spec,
         price,
         cat_no: spec.cat_no,
-        total: price * (r.quantity || 0),
+        total: price * toNumber(r.quantity),
       };
     });
     res.json(list);
