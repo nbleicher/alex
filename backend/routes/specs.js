@@ -47,10 +47,13 @@ specsRouter.post('/:id/specs', async (req, res) => {
 specsRouter.patch('/:id', async (req, res) => {
   try {
     const { spec, price, cat_no } = req.body;
-    const updates = { updated_at: new Date().toISOString() };
+    const updates = {};
     if (spec !== undefined) updates.spec = String(spec).trim();
     if (price !== undefined) updates.price = Number(price);
     if (cat_no !== undefined) updates.cat_no = String(cat_no).trim();
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'At least one of spec, price, cat_no is required' });
+    }
     const { data, error } = await supabase
       .from('product_specs')
       .update(updates)

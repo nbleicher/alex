@@ -83,14 +83,6 @@ function render() {
   renderSummary();
 }
 
-function getInventoryByProduct() {
-  const by = {};
-  for (const row of state.inventory) {
-    by[row.product_id] = row;
-  }
-  return by;
-}
-
 function renderSpendTable() {
   const tbody = document.getElementById('spendBody');
   const items = (state.inventory || []).filter((i) => (i.quantity || 0) > 0);
@@ -338,8 +330,10 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
   const addQty = Math.max(0, parseInt(document.getElementById('purchaseQty').value, 10) || 0);
   const purchase_date = document.getElementById('purchaseDate').value || null;
   if (!product_id || !product_spec_id) return;
-  const existing = state.inventory.find((i) => i.product_id === product_id);
-  const quantity = existing && existing.product_spec_id === product_spec_id ? (existing.quantity || 0) + addQty : addQty;
+  const existing = state.inventory.find(
+    (i) => i.product_id === product_id && i.product_spec_id === product_spec_id,
+  );
+  const quantity = existing ? (existing.quantity || 0) + addQty : addQty;
   try {
     await api('/inventory', {
       method: 'PUT',
@@ -467,15 +461,20 @@ function escapeHtml(s) {
 }
 
 function getInStockOptions() {
-  const invByProduct = getInventoryByProduct();
   const options = [];
-  state.products.forEach((p) => {
-    const inv = invByProduct[p.id];
+  const productsById = (state.products || []).reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {});
+
+  (state.inventory || []).forEach((inv) => {
     if (!inv || (inv.quantity || 0) <= 0) return;
+    const p = productsById[inv.product_id];
+    if (!p) return;
     const spec = (p.specs || []).find((s) => s.id === inv.product_spec_id);
     if (!spec) return;
     options.push({
-      product_id: p.id,
+      product_id: inv.product_id,
       product_spec_id: spec.id,
       label: `${p.name} ${spec.spec}`,
     });

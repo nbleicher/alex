@@ -63,11 +63,13 @@ inventoryRouter.put('/', async (req, res) => {
     }
     const qty = Math.max(0, parseInt(quantity, 10) || 0);
 
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from('inventory')
       .select('id')
       .eq('product_id', product_id)
-      .single();
+      .eq('product_spec_id', product_spec_id)
+      .maybeSingle();
+    if (existingError) throw existingError;
 
     const row = {
       product_id,
@@ -86,7 +88,7 @@ inventoryRouter.put('/', async (req, res) => {
       const { data, error } = await supabase
         .from('inventory')
         .update(row)
-        .eq('product_id', product_id)
+        .eq('id', existing.id)
         .select()
         .single();
       if (error) throw error;

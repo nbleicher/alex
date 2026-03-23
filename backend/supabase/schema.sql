@@ -28,8 +28,15 @@ create table if not exists inventory (
   purchase_date timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
-  unique(product_id)
+  unique(product_id, product_spec_id)
 );
+
+-- Migration for existing projects that still enforce one inventory row per product.
+-- Safe to run multiple times.
+alter table if exists inventory drop constraint if exists inventory_product_id_key;
+drop index if exists inventory_product_id_key;
+alter table if exists inventory
+  add constraint inventory_product_id_product_spec_id_key unique (product_id, product_spec_id);
 
 -- Sales (Purpose 2)
 create table if not exists sales (
