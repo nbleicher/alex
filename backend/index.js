@@ -27,9 +27,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mount specs under /products first so /products/:id/specs takes precedence
-app.use('/products', specsRouter);
 app.use('/products', productsRouter);
+app.use('/products', specsRouter);
 app.use('/specs', specsRouter);
 app.use('/inventory', inventoryRouter);
 app.use('/sales', salesRouter);
