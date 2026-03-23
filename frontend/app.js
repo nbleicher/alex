@@ -107,12 +107,10 @@ function renderSpendTable() {
 
   const orderKeys = Object.keys(groups).sort(); // oldest first; reverse if you want newest first
 
-  let totalSpend = 0;
-  orderKeys.forEach((key) => {
-    groups[key].forEach((r) => {
-      totalSpend += (Number(r.price) || 0) * (r.quantity || 0);
-    });
-  });
+  const totalSpend = items.reduce(
+    (sum, r) => sum + (Number(r.price) || 0) * (r.quantity || 0),
+    0,
+  );
 
   tbody.innerHTML = orderKeys
     .map((dateKey, idx) => {
@@ -211,12 +209,7 @@ function renderSpendTable() {
     })
     .join('');
 
-  const summary = state.summary || {};
-  const displaySpend =
-    summary.totalSpend != null && summary.totalSpend !== undefined
-      ? Number(summary.totalSpend)
-      : totalSpend;
-  document.getElementById('totalSpend').textContent = formatMoney(displaySpend);
+  document.getElementById('totalSpend').textContent = formatMoney(totalSpend);
 
   // Toggle handlers
   tbody.querySelectorAll('.toggle-order').forEach((btn) => {
