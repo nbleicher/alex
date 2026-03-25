@@ -85,6 +85,11 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function getComputedSpendFromInventory() {
+  const items = (state.inventory || []).filter((i) => toNumber(i.quantity) > 0);
+  return items.reduce((sum, r) => sum + toNumber(r.price) * toNumber(r.quantity), 0);
+}
+
 function render() {
   renderSpendTable();
   renderSalesTable();
@@ -115,10 +120,7 @@ function renderSpendTable() {
 
   const orderKeys = Object.keys(groups).sort(); // oldest first; reverse if you want newest first
 
-  const totalSpend = items.reduce(
-    (sum, r) => sum + toNumber(r.price) * toNumber(r.quantity),
-    0,
-  );
+  const totalSpend = getComputedSpendFromInventory();
 
   tbody.innerHTML = orderKeys
     .map((dateKey, idx) => {
@@ -538,10 +540,16 @@ async function deleteSale(id) {
 
 function renderSummary() {
   const s = state.summary;
-  document.getElementById('sumSpend').textContent = formatMoney(s.totalSpend);
-  document.getElementById('sumRevenue').textContent = formatMoney(s.totalRevenue);
+  const computedSpend = getComputedSpendFromInventory();
+  const totalRevenue =
+    s && s.totalRevenue != null && s.totalRevenue !== undefined
+      ? toNumber(s.totalRevenue)
+      : toNumber(s?.computedTotalRevenue);
+  const netProfit = totalRevenue - computedSpend;
+
+  document.getElementById('sumSpend').textContent = formatMoney(computedSpend);
+  document.getElementById('sumRevenue').textContent = formatMoney(totalRevenue);
   const el = document.getElementById('netProfit');
-  const netProfit = s.netProfit;
   el.textContent = formatMoney(netProfit);
   el.classList.remove('positive', 'negative');
   if (netProfit > 0) el.classList.add('positive');
