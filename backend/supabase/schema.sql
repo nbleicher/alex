@@ -19,27 +19,27 @@ create table if not exists product_specs (
   unique(product_id, spec)
 );
 
--- Inventory: one row per product with selected spec + quantity (Purpose 1)
+-- Inventory: purchase lines (multiple rows per product+spec allowed for cost history)
 create table if not exists inventory (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references products(id) on delete cascade,
   product_spec_id uuid not null references product_specs(id) on delete cascade,
   quantity integer not null default 0 check (quantity >= 0),
+  unit_cost numeric(12,2),
   status text,
   purchase_date timestamptz,
   created_at timestamptz default now(),
-  updated_at timestamptz default now(),
-  unique(product_id, product_spec_id)
+  updated_at timestamptz default now()
 );
 
--- Migration for existing projects that still enforce one inventory row per product.
--- Safe to run multiple times.
+-- Migration for existing projects
 alter table if exists inventory drop constraint if exists inventory_product_id_key;
 drop index if exists inventory_product_id_key;
-alter table if exists inventory
-  add constraint inventory_product_id_product_spec_id_key unique (product_id, product_spec_id);
+alter table if exists inventory drop constraint if exists inventory_product_id_product_spec_id_key;
 alter table if exists inventory add column if not exists status text;
 update inventory set status = null where trim(coalesce(status, '')) = '';
+alter table if exists inventory add column if not exists unit_cost numeric(12,2);
+create index if not exists idx_inventory_product_spec on inventory(product_id, product_spec_id);
 
 -- Sales (Purpose 2)
 create table if not exists sales (

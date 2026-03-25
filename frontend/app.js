@@ -163,8 +163,7 @@ function renderSpendTable() {
                 <td>
                   <button type="button" class="btn btn-small" data-edit-row-id="${r.id}">Edit</button>
                   <button type="button" class="btn btn-small btn-delete"
-                    data-product-id="${r.product_id}"
-                    data-spec-id="${r.product_spec_id}">
+                    data-inventory-id="${r.id}">
                     Delete
                   </button>
                   <span class="row-date-editor" data-editor-for-row="${r.id}" style="display:none;">
@@ -234,8 +233,8 @@ function renderSpendTable() {
   });
 
   // Delete handlers for nested rows
-  tbody.querySelectorAll('button[data-product-id]').forEach((btn) => {
-    btn.addEventListener('click', () => deletePurchase(btn.dataset.productId, btn.dataset.specId));
+  tbody.querySelectorAll('button[data-inventory-id]').forEach((btn) => {
+    btn.addEventListener('click', () => deletePurchase(btn.dataset.inventoryId));
   });
 
   // Per-row order date edit handlers
@@ -276,8 +275,7 @@ function renderSpendTable() {
         await api('/inventory', {
           method: 'PUT',
           body: JSON.stringify({
-            product_id: row.product_id,
-            product_spec_id: row.product_spec_id,
+            id: row.id,
             quantity: row.quantity,
             purchase_date: newDate,
           }),
@@ -303,8 +301,7 @@ function renderSpendTable() {
             api('/inventory', {
               method: 'PUT',
               body: JSON.stringify({
-                product_id: row.product_id,
-                product_spec_id: row.product_spec_id,
+                id: row.id,
                 quantity: row.quantity,
                 purchase_date: row.purchase_date,
                 status: nextStatus,
@@ -320,11 +317,11 @@ function renderSpendTable() {
   });
 }
 
-async function deletePurchase(productId, productSpecId) {
+async function deletePurchase(inventoryId) {
   try {
     await api('/inventory', {
       method: 'PUT',
-      body: JSON.stringify({ product_id: productId, product_spec_id: productSpecId, quantity: 0 }),
+      body: JSON.stringify({ id: inventoryId, quantity: 0 }),
     });
     await loadAll();
   } catch (e) {
@@ -349,6 +346,20 @@ function openPurchaseModal() {
   document.getElementById('purchaseModal').setAttribute('aria-hidden', 'false');
 }
 
+function syncPurchaseUnitCostFromSpec() {
+  const productId = document.getElementById('purchaseProduct').value;
+  const specId = document.getElementById('purchaseSpec').value;
+  const input = document.getElementById('purchaseUnitCost');
+  if (!input) return;
+  if (!productId || !specId) {
+    input.value = '';
+    return;
+  }
+  const product = state.products.find((p) => p.id === productId);
+  const spec = product?.specs?.find((s) => s.id === specId);
+  if (spec) input.value = spec.price;
+}
+
 function updatePurchaseSpecDropdown() {
   const productId = document.getElementById('purchaseProduct').value;
   const specSelect = document.getElementById('purchaseSpec');
@@ -360,6 +371,7 @@ function updatePurchaseSpecDropdown() {
       specSelect.appendChild(new Option(`${s.spec} — ${formatMoney(s.price)}`, s.id));
     });
   }
+  syncPurchaseUnitCostFromSpec();
 }
 
 function closePurchaseModal() {
@@ -370,6 +382,7 @@ document.getElementById('addPurchase').addEventListener('click', openPurchaseMod
 document.getElementById('closePurchaseModal').addEventListener('click', closePurchaseModal);
 document.getElementById('cancelPurchase').addEventListener('click', closePurchaseModal);
 document.getElementById('purchaseProduct').addEventListener('change', updatePurchaseSpecDropdown);
+document.getElementById('purchaseSpec').addEventListener('change', syncPurchaseUnitCostFromSpec);
 
 document.getElementById('purchaseForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -377,15 +390,20 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
   const product_spec_id = document.getElementById('purchaseSpec').value;
   const addQty = Math.max(0, parseInt(document.getElementById('purchaseQty').value, 10) || 0);
   const purchase_date = document.getElementById('purchaseDate').value || null;
+  const unitCostRaw = document.getElementById('purchaseUnitCost')?.value;
   if (!product_id || !product_spec_id) return;
-  const existing = state.inventory.find(
-    (i) => i.product_id === product_id && i.product_spec_id === product_spec_id,
-  );
-  const quantity = existing ? (existing.quantity || 0) + addQty : addQty;
+  if (addQty <= 0) {
+    alert('Enter a quantity greater than 0.');
+    return;
+  }
+  const payload = { product_id, product_spec_id, quantity: addQty, purchase_date };
+  if (unitCostRaw != null && String(unitCostRaw).trim() !== '') {
+    payload.unit_cost = parseFloat(unitCostRaw);
+  }
   try {
     await api('/inventory', {
       method: 'PUT',
-      body: JSON.stringify({ product_id, product_spec_id, quantity, purchase_date }),
+      body: JSON.stringify(payload),
     });
     closePurchaseModal();
     await loadAll();
@@ -565,25 +583,34 @@ function escapeHtml(s) {
 }
 
 function getInStockOptions() {
-  const options = [];
   const productsById = (state.products || []).reduce((acc, p) => {
     acc[p.id] = p;
     return acc;
   }, {});
 
+  const byKey = {};
   (state.inventory || []).forEach((inv) => {
-    if (!inv || (inv.quantity || 0) <= 0) return;
+    if (!inv || toNumber(inv.quantity) <= 0) return;
     const p = productsById[inv.product_id];
     if (!p) return;
     const spec = (p.specs || []).find((s) => s.id === inv.product_spec_id);
     if (!spec) return;
-    options.push({
-      product_id: inv.product_id,
-      product_spec_id: spec.id,
-      label: `${p.name} ${spec.spec}`,
-    });
+    const key = `${inv.product_id}|${inv.product_spec_id}`;
+    if (!byKey[key]) {
+      byKey[key] = {
+        product_id: inv.product_id,
+        product_spec_id: spec.id,
+        labelBase: `${p.name} ${spec.spec}`,
+        qty: 0,
+      };
+    }
+    byKey[key].qty += toNumber(inv.quantity);
   });
-  return options;
+  return Object.values(byKey).map((o) => ({
+    product_id: o.product_id,
+    product_spec_id: o.product_spec_id,
+    label: `${o.labelBase} (${o.qty} in stock)`,
+  }));
 }
 
 function openSaleModal() {

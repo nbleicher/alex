@@ -256,6 +256,7 @@
         <form id="purchaseForm">
           <label>Product <select id="purchaseProduct" required></select></label>
           <label>Spec <select id="purchaseSpec" required></select></label>
+          <label>Unit cost (per kit) <input type="number" id="purchaseUnitCost" step="0.01" min="0" placeholder="Defaults to catalog price" /></label>
           <label>Quantity (kits) <input type="number" id="purchaseQty" min="0" required /></label>
           <label>Purchase date <input type="date" id="purchaseDate" /></label>
           <div class="form-actions">

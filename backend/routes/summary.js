@@ -8,11 +8,15 @@ summaryRouter.get('/', async (req, res) => {
   try {
     const { data: inv } = await supabase.from('inventory').select(`
       quantity,
+      unit_cost,
       product_specs ( price )
     `);
     let computedTotalSpend = 0;
     for (const row of inv || []) {
-      const price = row.product_specs?.price ? Number(row.product_specs.price) : 0;
+      const catalog = row.product_specs?.price != null ? Number(row.product_specs.price) : 0;
+      const unit =
+        row.unit_cost != null && row.unit_cost !== '' ? Number(row.unit_cost) : catalog;
+      const price = Number.isFinite(unit) ? unit : 0;
       computedTotalSpend += price * (row.quantity || 0);
     }
 
