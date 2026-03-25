@@ -41,6 +41,8 @@ update inventory set status = null where trim(coalesce(status, '')) = '';
 alter table if exists inventory add column if not exists unit_cost numeric(12,2);
 create index if not exists idx_inventory_product_spec on inventory(product_id, product_spec_id);
 
+-- Optional: verify / backfill unit_cost for rows still following catalog — see backfill-unit-cost.sql
+
 -- Sales (Purpose 2)
 create table if not exists sales (
   id uuid primary key default gen_random_uuid(),

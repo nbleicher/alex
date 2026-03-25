@@ -152,16 +152,30 @@ function renderSpendTable() {
               rowDateKey = d.toISOString().slice(0, 10);
             }
           }
+          const isLegacyCost =
+            (r.unit_cost == null || r.unit_cost === '') && toNumber(r.quantity) > 0;
+          const lockAmount = toNumber(
+            r.catalog_price != null && r.catalog_price !== '' ? r.catalog_price : r.price,
+          );
           return `
               <tr class="${statusClassByStatus[orderStatus] || ''}">
                 <td>${escapeHtml(r.cat_no || '-')}</td>
                 <td>${escapeHtml(r.product_name || '')}</td>
                 <td>${escapeHtml(r.spec || '')}</td>
-                <td class="num">${formatMoney(r.price)}</td>
+                <td class="num">${formatMoney(r.price)}${
+            isLegacyCost
+              ? '<span class="cost-legacy-tag" title="Cost follows catalog until you lock it">catalog</span>'
+              : ''
+          }</td>
                 <td class="num">${r.quantity}</td>
                 <td class="num">${formatMoney(toNumber(r.price) * toNumber(r.quantity))}</td>
                 <td>
                   <button type="button" class="btn btn-small" data-edit-row-id="${r.id}">Edit</button>
+                  ${
+            isLegacyCost
+              ? `<button type="button" class="btn btn-small" data-lock-unit-cost="${r.id}" data-lock-amount="${lockAmount}" title="Freeze this line at the current catalog unit cost">Lock cost</button>`
+              : ''
+          }
                   <button type="button" class="btn btn-small btn-delete"
                     data-inventory-id="${r.id}">
                     Delete
@@ -235,6 +249,23 @@ function renderSpendTable() {
   // Delete handlers for nested rows
   tbody.querySelectorAll('button[data-inventory-id]').forEach((btn) => {
     btn.addEventListener('click', () => deletePurchase(btn.dataset.inventoryId));
+  });
+
+  tbody.querySelectorAll('button[data-lock-unit-cost]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.lockUnitCost;
+      const amount = toNumber(btn.dataset.lockAmount);
+      if (!id || !Number.isFinite(amount)) return;
+      try {
+        await api('/inventory', {
+          method: 'PUT',
+          body: JSON.stringify({ id, unit_cost: amount }),
+        });
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
   });
 
   // Per-row order date edit handlers
