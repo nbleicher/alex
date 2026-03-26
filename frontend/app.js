@@ -948,10 +948,7 @@ if (
   decrementTotalSpendBtn
 ) {
   function getCurrentTotalSpendBase() {
-    const s = state.summary || {};
-    if (s.totalSpend != null && s.totalSpend !== undefined) return Number(s.totalSpend);
-    if (s.computedTotalSpend != null && s.computedTotalSpend !== undefined) return Number(s.computedTotalSpend);
-    return 0;
+    return getDisplayTotalSpend();
   }
 
   function applyTotalSpendDelta(sign) {
@@ -1065,10 +1062,7 @@ if (
   cancelTotalRevenueBtn
 ) {
   function getCurrentTotalRevenueBase() {
-    const s = state.summary || {};
-    if (s.totalRevenue != null && s.totalRevenue !== undefined) return Number(s.totalRevenue);
-    if (s.computedTotalRevenue != null && s.computedTotalRevenue !== undefined) return Number(s.computedTotalRevenue);
-    return 0;
+    return getDisplayTotalRevenue();
   }
 
   function applyTotalRevenueDelta(sign) {
