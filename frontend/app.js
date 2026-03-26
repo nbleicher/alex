@@ -90,6 +90,24 @@ function getComputedSpendFromInventory() {
   return items.reduce((sum, r) => sum + toNumber(r.price) * toNumber(r.quantity), 0);
 }
 
+function getDisplayTotalSpend() {
+  const s = state.summary || {};
+  if (s.totalSpend != null && s.totalSpend !== undefined) return toNumber(s.totalSpend);
+  if (s.computedTotalSpend != null && s.computedTotalSpend !== undefined) {
+    return toNumber(s.computedTotalSpend);
+  }
+  return getComputedSpendFromInventory();
+}
+
+function getDisplayTotalRevenue() {
+  const s = state.summary || {};
+  if (s.totalRevenue != null && s.totalRevenue !== undefined) return toNumber(s.totalRevenue);
+  if (s.computedTotalRevenue != null && s.computedTotalRevenue !== undefined) {
+    return toNumber(s.computedTotalRevenue);
+  }
+  return toNumber(0);
+}
+
 function render() {
   renderSpendTable();
   renderSalesTable();
@@ -120,7 +138,7 @@ function renderSpendTable() {
 
   const orderKeys = Object.keys(groups).sort(); // oldest first; reverse if you want newest first
 
-  const totalSpend = getComputedSpendFromInventory();
+  const totalSpend = getDisplayTotalSpend();
 
   tbody.innerHTML = orderKeys
     .map((dateKey, idx) => {
@@ -589,14 +607,11 @@ async function deleteSale(id) {
 
 function renderSummary() {
   const s = state.summary;
-  const computedSpend = getComputedSpendFromInventory();
-  const totalRevenue =
-    s && s.totalRevenue != null && s.totalRevenue !== undefined
-      ? toNumber(s.totalRevenue)
-      : toNumber(s?.computedTotalRevenue);
-  const netProfit = totalRevenue - computedSpend;
+  const totalSpend = getDisplayTotalSpend();
+  const totalRevenue = getDisplayTotalRevenue();
+  const netProfit = totalRevenue - totalSpend;
 
-  document.getElementById('sumSpend').textContent = formatMoney(computedSpend);
+  document.getElementById('sumSpend').textContent = formatMoney(totalSpend);
   document.getElementById('sumRevenue').textContent = formatMoney(totalRevenue);
   const el = document.getElementById('netProfit');
   el.textContent = formatMoney(netProfit);
@@ -604,6 +619,19 @@ function renderSummary() {
   if (netProfit > 0) el.classList.add('positive');
   else if (netProfit < 0) el.classList.add('negative');
   el.style.color = '';
+
+  if (totalsMetaRow && totalsMetaText) {
+    if (s && s.overridesActive && s.latestOverride) {
+      const d = s.latestOverride.created_at ? new Date(s.latestOverride.created_at) : null;
+      const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
+      const r = s.latestOverride.reason || '';
+      totalsMetaRow.style.display = '';
+      totalsMetaText.textContent = `Edited totals permanently${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
+    } else {
+      totalsMetaRow.style.display = 'none';
+      totalsMetaText.textContent = '';
+    }
+  }
 }
 
 function escapeHtml(s) {
@@ -1139,20 +1167,6 @@ if (
       alert(err.message);
     }
   });
-}
-
-if (totalsMetaRow && totalsMetaText) {
-  const s = state.summary || {};
-  if (s.overridesActive && s.latestOverride) {
-    const d = s.latestOverride.created_at ? new Date(s.latestOverride.created_at) : null;
-    const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
-    const r = s.latestOverride.reason || '';
-    totalsMetaRow.style.display = '';
-    totalsMetaText.textContent = `Edited totals permanently${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
-  } else {
-    totalsMetaRow.style.display = 'none';
-    totalsMetaText.textContent = '';
-  }
 }
 
 async function openOverridesHistory() {
