@@ -108,14 +108,6 @@ function getDisplayTotalRevenue() {
   return toNumber(0);
 }
 
-function getComputedTotalSpendBase() {
-  const s = state.summary || {};
-  if (s.computedTotalSpend != null && s.computedTotalSpend !== undefined) {
-    return toNumber(s.computedTotalSpend);
-  }
-  return getComputedSpendFromInventory();
-}
-
 function render() {
   renderSpendTable();
   renderSalesTable();
@@ -956,7 +948,12 @@ if (
   decrementTotalSpendBtn
 ) {
   function getCurrentTotalSpendBase() {
-    return getComputedTotalSpendBase();
+    const s = state.summary || {};
+    if (s.totalSpend != null && s.totalSpend !== undefined) return toNumber(s.totalSpend);
+    if (s.computedTotalSpend != null && s.computedTotalSpend !== undefined) {
+      return toNumber(s.computedTotalSpend);
+    }
+    return getComputedSpendFromInventory();
   }
 
   function applyTotalSpendDelta(sign) {
