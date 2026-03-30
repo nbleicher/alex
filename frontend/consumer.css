@@ -31,6 +31,13 @@ body {
   cursor: pointer;
 }
 
+.admin-cog-bottom-left {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 20;
+}
+
 .product-grid {
   max-width: 1300px;
   margin: 0 auto;

@@ -14,10 +14,11 @@
     <div></div>
     <h1>SAVAGE PEPTIDES</h1>
     <div class="header-actions">
-      <button id="openAdmin" class="icon-btn" title="Admin">⚙</button>
       <button id="openCart" class="icon-btn cart-btn" title="Cart">🛒 <span id="cartCount">0</span></button>
     </div>
   </header>
+
+  <button id="openAdmin" class="icon-btn admin-cog-bottom-left" title="Admin">⚙</button>
 
   <main>
     <section id="productGrid" class="product-grid"></section>
@@ -58,6 +59,21 @@
       <h2>Order submitted</h2>
       <p id="confirmationText"></p>
       <button id="closeConfirmation">Close</button>
+    </div>
+  </div>
+
+  <div class="modal" id="adminLoginModal" aria-hidden="true">
+    <div class="card">
+      <div class="card-header">
+        <h2>Admin login</h2>
+        <button class="close-btn" id="closeAdminLogin" aria-label="Close">×</button>
+      </div>
+      <form id="adminLoginForm" class="checkout-form">
+        <label>Username <input id="adminUsername" required /></label>
+        <label>Password <input id="adminPassword" type="password" required /></label>
+        <button type="submit">Login</button>
+      </form>
+      <div id="adminLoginError" class="error"></div>
     </div>
   </div>
 

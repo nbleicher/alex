@@ -938,15 +938,6 @@ if (seedDataBtn) {
   });
 }
 
-const manageProductsLink = document.getElementById('manageProducts');
-if (manageProductsLink) {
-  manageProductsLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    setAdminTab('products');
-    renderProductList();
-  });
-}
-
 function openProductForm(productId = null) {
   const isEdit = !!productId;
   document.getElementById('productFormTitle').textContent = isEdit ? 'Edit product' : 'Add product';
@@ -1480,18 +1471,6 @@ if (viewOverrideHistoryBtn && overridesHistoryModal && closeOverridesHistoryBtn 
 }
 
 async function initAdminSession() {
-  const loginModal = document.getElementById('adminLoginModal');
-  const loginForm = document.getElementById('adminLoginForm');
-  const loginError = document.getElementById('adminLoginError');
-  const adminCog = document.getElementById('adminCog');
-
-  const showLogin = () => {
-    if (loginModal) loginModal.setAttribute('aria-hidden', 'false');
-  };
-  const hideLogin = () => {
-    if (loginModal) loginModal.setAttribute('aria-hidden', 'true');
-  };
-
   async function checkAuth() {
     try {
       const me = await api('/admin-auth/me');
@@ -1501,42 +1480,11 @@ async function initAdminSession() {
     }
   }
 
-  if (loginForm) {
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (loginError) loginError.textContent = '';
-      try {
-        await api('/admin-auth/login', {
-          method: 'POST',
-          body: JSON.stringify({
-            username: document.getElementById('adminUsername').value.trim(),
-            password: document.getElementById('adminPassword').value,
-          }),
-        });
-        hideLogin();
-        await loadAll();
-      } catch (err) {
-        if (loginError) loginError.textContent = err.message;
-      }
-    });
-  }
-
-  if (adminCog) {
-    adminCog.addEventListener('click', async () => {
-      const isAuthed = await checkAuth();
-      if (isAuthed) {
-        await api('/admin-auth/logout', { method: 'POST' });
-      }
-      showLogin();
-    });
-  }
-
   const isAuthed = await checkAuth();
   if (!isAuthed) {
-    showLogin();
+    window.location.href = '/';
     return;
   }
-  hideLogin();
   await loadAll();
 }
 

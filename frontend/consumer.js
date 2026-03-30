@@ -150,8 +150,30 @@ async function submitCheckout(e) {
   }
 }
 
-document.getElementById('openAdmin').addEventListener('click', () => {
-  window.location.href = '/admin/';
+function showAdminLogin() {
+  document.getElementById('adminLoginModal').setAttribute('aria-hidden', 'false');
+}
+
+function hideAdminLogin() {
+  document.getElementById('adminLoginModal').setAttribute('aria-hidden', 'true');
+}
+
+async function checkAdminAuth() {
+  try {
+    const me = await api('/admin-auth/me');
+    return !!me?.authenticated;
+  } catch (_) {
+    return false;
+  }
+}
+
+document.getElementById('openAdmin').addEventListener('click', async () => {
+  const isAuthed = await checkAdminAuth();
+  if (isAuthed) {
+    window.location.href = '/admin/';
+    return;
+  }
+  showAdminLogin();
 });
 document.getElementById('openCart').addEventListener('click', () => openModal('cartModal'));
 document.getElementById('closeCart').addEventListener('click', () => closeModal('cartModal'));
@@ -164,6 +186,25 @@ document.getElementById('checkoutForm').addEventListener('submit', submitCheckou
 document.getElementById('closeConfirmation').addEventListener('click', () =>
   closeModal('confirmationModal'),
 );
+document.getElementById('closeAdminLogin').addEventListener('click', hideAdminLogin);
+document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const loginError = document.getElementById('adminLoginError');
+  loginError.textContent = '';
+  try {
+    await api('/admin-auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: document.getElementById('adminUsername').value.trim(),
+        password: document.getElementById('adminPassword').value,
+      }),
+    });
+    hideAdminLogin();
+    window.location.href = '/admin/';
+  } catch (err) {
+    loginError.textContent = err?.error || 'Login failed';
+  }
+});
 
 loadProducts().catch((err) => {
   document.getElementById('productGrid').innerHTML = `<p class="error">${escapeHtml(err?.error || err.message || 'Failed to load products')}</p>`;
