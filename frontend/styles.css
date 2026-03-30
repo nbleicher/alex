@@ -630,6 +630,13 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.order-card-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .order-col-processing {
   background: rgba(251, 191, 36, 0.2);
 }

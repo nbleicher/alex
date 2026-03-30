@@ -8,10 +8,59 @@ const NEXT_STATUS = {
   processing: 'payment_received',
   payment_received: 'fulfilled',
 };
+const PREV_STATUS = {
+  payment_received: 'processing',
+  fulfilled: 'payment_received',
+};
 
 function toInt(v) {
   const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : 0;
+}
+
+async function getOrderItemsAndReservations(orderId) {
+  const { data: itemRows, error: itemError } = await supabase
+    .from('order_items')
+    .select('id, ordered_quantity')
+    .eq('order_id', orderId);
+  if (itemError) throw itemError;
+  const itemIds = (itemRows || []).map((i) => i.id);
+  if (itemIds.length === 0) return { itemRows: [], reservations: [] };
+
+  const { data: reservations, error: reservationError } = await supabase
+    .from('order_item_reservations')
+    .select('id, order_item_id, inventory_id, quantity')
+    .in('order_item_id', itemIds);
+  if (reservationError) throw reservationError;
+  return { itemRows: itemRows || [], reservations: reservations || [] };
+}
+
+async function adjustInventoryFromReservations(reservations, mode = 'deduct') {
+  const byInventory = {};
+  for (const r of reservations || []) {
+    byInventory[r.inventory_id] = (byInventory[r.inventory_id] || 0) + toInt(r.quantity);
+  }
+  const inventoryIds = Object.keys(byInventory);
+  if (inventoryIds.length === 0) return;
+
+  const { data: inventoryRows, error: invError } = await supabase
+    .from('inventory')
+    .select('id, quantity')
+    .in('id', inventoryIds);
+  if (invError) throw invError;
+
+  for (const row of inventoryRows || []) {
+    const delta = byInventory[row.id] || 0;
+    const nextQty =
+      mode === 'add'
+        ? Math.max(0, toInt(row.quantity) + delta)
+        : Math.max(0, toInt(row.quantity) - delta);
+    const { error: updateInvError } = await supabase
+      .from('inventory')
+      .update({ quantity: nextQty, updated_at: new Date().toISOString() })
+      .eq('id', row.id);
+    if (updateInvError) throw updateInvError;
+  }
 }
 
 async function buildShortagesForRequest(items) {
@@ -337,26 +386,19 @@ ordersRouter.patch('/:id/status', async (req, res) => {
     if (orderError) throw orderError;
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const expected = NEXT_STATUS[order.status];
-    if (expected !== nextStatus) {
+    const expectedNext = NEXT_STATUS[order.status];
+    const expectedPrev = PREV_STATUS[order.status];
+    const isAllowed = nextStatus === expectedNext || nextStatus === expectedPrev;
+    if (!isAllowed) {
       return res.status(400).json({
-        error: `Invalid status transition. Allowed: ${order.status} -> ${expected || '(none)'}`,
+        error:
+          `Invalid status transition. Allowed: ${order.status} -> ${expectedNext || '(none)'}` +
+          `${expectedPrev ? ` or ${expectedPrev}` : ''}`,
       });
     }
 
     if (nextStatus === 'fulfilled') {
-      const { data: itemRows, error: itemError } = await supabase
-        .from('order_items')
-        .select('id, ordered_quantity')
-        .eq('order_id', id);
-      if (itemError) throw itemError;
-
-      const itemIds = (itemRows || []).map((i) => i.id);
-      const { data: reservations, error: reservationError } = await supabase
-        .from('order_item_reservations')
-        .select('id, order_item_id, inventory_id, quantity')
-        .in('order_item_id', itemIds);
-      if (reservationError) throw reservationError;
+      const { itemRows, reservations } = await getOrderItemsAndReservations(id);
 
       const reservedByItem = {};
       for (const r of reservations || []) {
@@ -369,39 +411,12 @@ ordersRouter.patch('/:id/status', async (req, res) => {
           });
         }
       }
+      await adjustInventoryFromReservations(reservations, 'deduct');
+    }
 
-      const byInventory = {};
-      for (const r of reservations || []) {
-        byInventory[r.inventory_id] = (byInventory[r.inventory_id] || 0) + toInt(r.quantity);
-      }
-
-      const inventoryIds = Object.keys(byInventory);
-      if (inventoryIds.length > 0) {
-        const { data: inventoryRows, error: invError } = await supabase
-          .from('inventory')
-          .select('id, quantity')
-          .in('id', inventoryIds);
-        if (invError) throw invError;
-
-        for (const row of inventoryRows || []) {
-          const deduct = byInventory[row.id] || 0;
-          const nextQty = Math.max(0, toInt(row.quantity) - deduct);
-          const { error: updateInvError } = await supabase
-            .from('inventory')
-            .update({ quantity: nextQty, updated_at: new Date().toISOString() })
-            .eq('id', row.id);
-          if (updateInvError) throw updateInvError;
-        }
-      }
-
-      if ((reservations || []).length > 0) {
-        const reservationIds = reservations.map((r) => r.id);
-        const { error: deleteReservationError } = await supabase
-          .from('order_item_reservations')
-          .delete()
-          .in('id', reservationIds);
-        if (deleteReservationError) throw deleteReservationError;
-      }
+    if (order.status === 'fulfilled' && nextStatus === 'payment_received') {
+      const { reservations } = await getOrderItemsAndReservations(id);
+      await adjustInventoryFromReservations(reservations, 'add');
     }
 
     const { error: updateOrderError } = await supabase
@@ -413,6 +428,32 @@ ordersRouter.patch('/:id/status', async (req, res) => {
     await recomputeOpenOrderReservations();
     const serialized = await serializeOrderById(id);
     res.json(serialized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+ordersRouter.delete('/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('id', id)
+      .maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    if (order.status === 'fulfilled') {
+      const { reservations } = await getOrderItemsAndReservations(id);
+      await adjustInventoryFromReservations(reservations, 'add');
+    }
+
+    const { error: deleteError } = await supabase.from('orders').delete().eq('id', id);
+    if (deleteError) throw deleteError;
+
+    await recomputeOpenOrderReservations();
+    res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

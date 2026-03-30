@@ -702,6 +702,10 @@ function renderSummary() {
 function renderOrdersBoard() {
   const root = document.getElementById('ordersColumns');
   if (!root) return;
+  const prevStatus = {
+    payment_received: 'processing',
+    fulfilled: 'payment_received',
+  };
   const columns = [
     { key: 'processing', label: 'Processing', cls: 'order-col-processing' },
     { key: 'payment_received', label: 'Payment received', cls: 'order-col-payment' },
@@ -725,16 +729,25 @@ function renderOrdersBoard() {
               : o.status === 'payment_received'
                 ? 'fulfilled'
                 : null;
+          const backStatus = prevStatus[o.status] || null;
           return `
             <article class="order-card ${col.cls}">
               <strong>${escapeHtml(o.order_number)}</strong>
               <div>${escapeHtml(o.first_name)} ${escapeHtml(o.last_name)} · ${escapeHtml(o.phone)}</div>
               <ul>${items}</ul>
-              ${
-                nextStatus
-                  ? `<button class="btn btn-small" data-next-order-status="${o.id}" data-next-status="${nextStatus}">Move to ${nextStatus.replace('_', ' ')}</button>`
-                  : ''
-              }
+              <div class="order-card-actions">
+                ${
+                  backStatus
+                    ? `<button class="btn btn-small" data-prev-order-status="${o.id}" data-prev-status="${backStatus}">Move back</button>`
+                    : ''
+                }
+                ${
+                  nextStatus
+                    ? `<button class="btn btn-small" data-next-order-status="${o.id}" data-next-status="${nextStatus}">Move to ${nextStatus.replace('_', ' ')}</button>`
+                    : ''
+                }
+                <button class="btn btn-small btn-delete" data-delete-order="${o.id}">Delete</button>
+              </div>
             </article>
           `;
         })
@@ -750,6 +763,32 @@ function renderOrdersBoard() {
           method: 'PATCH',
           body: JSON.stringify({ status: btn.dataset.nextStatus }),
         });
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  root.querySelectorAll('[data-prev-order-status]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await api(`/orders/${btn.dataset.prevOrderStatus}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: btn.dataset.prevStatus }),
+        });
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  root.querySelectorAll('[data-delete-order]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this order?')) return;
+      try {
+        await api(`/orders/${btn.dataset.deleteOrder}`, { method: 'DELETE' });
         await loadAll();
       } catch (err) {
         alert(err.message);
@@ -1394,15 +1433,36 @@ async function openOverridesHistory() {
               ? formatMoney(h.manual_total_revenue)
               : '—';
           const reason = h.reason || '';
+          const hasSpendOverride =
+            h.manual_total_spend != null || h.spend_adjustment != null;
           return `
         <tr>
           <td>${escapeHtml(when)}</td>
           <td class="num">${spend}</td>
           <td class="num">${revenue}</td>
           <td>${escapeHtml(reason)}</td>
+          <td>
+            ${
+              hasSpendOverride
+                ? `<button type="button" class="btn btn-small btn-delete" data-delete-override-id="${h.id}">Remove spend update</button>`
+                : ''
+            }
+          </td>
         </tr>`;
         })
-        .join('') || '<tr><td colspan="4">No manual edits yet.</td></tr>';
+        .join('') || '<tr><td colspan="5">No manual edits yet.</td></tr>';
+    overridesHistoryBody.querySelectorAll('[data-delete-override-id]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Remove this manual spend update?')) return;
+        try {
+          await api(`/summary/overrides/${btn.dataset.deleteOverrideId}`, { method: 'DELETE' });
+          await openOverridesHistory();
+          await loadAll();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
     overridesHistoryModal.setAttribute('aria-hidden', 'false');
   } catch (err) {
     alert(err.message);

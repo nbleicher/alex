@@ -136,3 +136,16 @@ summaryRouter.get('/overrides', async (_req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// DELETE /summary/overrides/:id – remove a manual override entry
+summaryRouter.delete('/overrides/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!id) return res.status(400).json({ error: 'Override id is required' });
+    const { error } = await supabase.from('summary_overrides').delete().eq('id', id);
+    if (error) throw error;
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
