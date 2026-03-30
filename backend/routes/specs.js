@@ -22,7 +22,7 @@ specsRouter.get('/:id/specs', async (req, res) => {
 // POST /products/:id/specs
 specsRouter.post('/:id/specs', async (req, res) => {
   try {
-    const { spec, price, cat_no, image_url } = req.body;
+    const { spec, price, cat_no, image_url, available } = req.body;
     if (!spec || price == null) {
       return res.status(400).json({ error: 'spec and price required' });
     }
@@ -35,6 +35,7 @@ specsRouter.post('/:id/specs', async (req, res) => {
         price: Number(price),
         cat_no: cat_no != null ? String(cat_no).trim() : null,
         image_url: image_url ? String(image_url).trim() : null,
+        available: !!available,
       })
       .select()
       .single();
@@ -51,7 +52,7 @@ specsRouter.patch('/:id', async (req, res) => {
     if (!req.params.id) {
       return res.status(400).json({ error: 'Spec id is required' });
     }
-    const { spec, price, cat_no, image_url } = req.body;
+    const { spec, price, cat_no, image_url, available } = req.body;
     const updates = {};
     if (spec !== undefined) updates.spec = String(spec).trim();
     if (price !== undefined) {
@@ -69,6 +70,7 @@ specsRouter.patch('/:id', async (req, res) => {
       const nextImage = image_url == null ? '' : String(image_url).trim();
       updates.image_url = nextImage || null;
     }
+    if (available !== undefined) updates.available = !!available;
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
     }

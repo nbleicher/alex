@@ -27,7 +27,9 @@ async function buildShortagesForRequest(items) {
   const { data: inventoryRows, error: invError } = await supabase
     .from('inventory')
     .select('product_spec_id, quantity')
-    .in('product_spec_id', specIds);
+    .in('product_spec_id', specIds)
+    .eq('status', 'Delivered')
+    .gt('quantity', 0);
   if (invError) throw invError;
 
   const { data: openOrderItems, error: openItemsError } = await supabase
@@ -87,6 +89,7 @@ export async function recomputeOpenOrderReservations() {
   const { data: inventoryRows, error: invError } = await supabase
     .from('inventory')
     .select('id, product_spec_id, quantity, purchase_date, created_at')
+    .eq('status', 'Delivered')
     .gt('quantity', 0)
     .order('purchase_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true });

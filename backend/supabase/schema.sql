@@ -18,6 +18,7 @@ create table if not exists product_specs (
   price numeric(12,2) not null,
   cat_no text,
   image_url text,
+  available boolean not null default false,
   created_at timestamptz default now(),
   unique(product_id, spec)
 );
@@ -25,6 +26,13 @@ create table if not exists product_specs (
 alter table if exists products add column if not exists available boolean not null default false;
 alter table if exists products add column if not exists image_url text;
 alter table if exists product_specs add column if not exists image_url text;
+alter table if exists product_specs add column if not exists available boolean not null default false;
+
+-- One-time: copy legacy product.available onto each spec row
+update product_specs ps
+set available = true
+from products p
+where ps.product_id = p.id and p.available = true and ps.available = false;
 
 -- Inventory: purchase lines (multiple rows per product+spec allowed for cost history)
 create table if not exists inventory (

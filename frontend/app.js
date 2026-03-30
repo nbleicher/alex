@@ -44,6 +44,7 @@ let state = {
     latestOverride: null,
   },
   salesClientFilter: '',
+  activeAdminTab: 'gainloss',
 };
 
 async function loadAll() {
@@ -117,6 +118,62 @@ function render() {
   renderSalesTable();
   renderSummary();
   renderOrdersBoard();
+  renderInventoryTab();
+}
+
+function setAdminTab(tab) {
+  state.activeAdminTab = tab;
+  document.querySelectorAll('.admin-tab').forEach((btn) => {
+    const on = btn.dataset.adminTab === tab;
+    btn.classList.toggle('active', on);
+    btn.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  document.querySelectorAll('.admin-tab-panel').forEach((panel) => {
+    const on = panel.dataset.panel === tab;
+    panel.hidden = !on;
+    panel.classList.toggle('active', on);
+  });
+  if (tab === 'products') renderProductList();
+  if (tab === 'inventory') renderInventoryTab();
+  if (tab === 'orders') renderOrdersBoard();
+}
+
+function initAdminTabs() {
+  const bar = document.querySelector('.admin-tab-bar');
+  if (!bar) return;
+  bar.querySelectorAll('[data-admin-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => setAdminTab(btn.dataset.adminTab));
+  });
+}
+
+function renderInventoryTab() {
+  const tbody = document.getElementById('inventoryDeliveredBody');
+  if (!tbody) return;
+  const rows = (state.inventory || []).filter(
+    (i) => (i.quantity || 0) > 0 && i.status === 'Delivered',
+  );
+  rows.sort((a, b) => {
+    const da = new Date(a.purchase_date || a.created_at || 0).getTime();
+    const db = new Date(b.purchase_date || b.created_at || 0).getTime();
+    return da - db;
+  });
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6">No delivered inventory.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows
+    .map((r) => {
+      const line = toNumber(r.price) * toNumber(r.quantity);
+      return `<tr>
+        <td>${escapeHtml(r.cat_no || '-')}</td>
+        <td>${escapeHtml(r.product_name || '')}</td>
+        <td>${escapeHtml(r.spec || '')}</td>
+        <td class="num">${formatMoney(r.price)}</td>
+        <td class="num">${r.quantity}</td>
+        <td class="num">${formatMoney(line)}</td>
+      </tr>`;
+    })
+    .join('');
 }
 
 function renderSpendTable() {
@@ -715,6 +772,7 @@ function getInStockOptions() {
   const byKey = {};
   (state.inventory || []).forEach((inv) => {
     if (!inv || toNumber(inv.quantity) <= 0) return;
+    if (inv.status !== 'Delivered') return;
     const p = productsById[inv.product_id];
     if (!p) return;
     const spec = (p.specs || []).find((s) => s.id === inv.product_spec_id);
@@ -805,47 +863,48 @@ document.getElementById('saleForm').addEventListener('submit', async (e) => {
   }
 });
 
-function openProductsModal() {
-  renderProductList();
-  document.getElementById('productsModal').setAttribute('aria-hidden', 'false');
-}
-
-function closeProductsModal() {
-  document.getElementById('productsModal').setAttribute('aria-hidden', 'true');
-}
-
 function renderProductList() {
   const ul = document.getElementById('productList');
+  if (!ul) return;
   ul.innerHTML = state.products
-    .map(
-      (p) => `
+    .map((p) => {
+      const specs = p.specs || [];
+      const avail = specs.filter((s) => s.available).map((s) => escapeHtml(s.spec)).join(', ');
+      const availText = avail ? `store: ${avail}` : 'store: (none)';
+      return `
     <li>
-      <span class="name">${escapeHtml(p.name)} ${p.available ? '• available' : ''}</span>
+      <span class="name">${escapeHtml(p.name)} <span class="text-muted" style="font-size:0.8rem;">${availText}</span></span>
       <button type="button" class="btn btn-small edit-product" data-id="${p.id}">Edit</button>
       <button type="button" class="btn-delete delete-product" data-id="${p.id}" aria-label="Delete">×</button>
-    </li>`
-    )
+    </li>`;
+    })
     .join('');
   ul.querySelectorAll('.edit-product').forEach((b) => b.addEventListener('click', () => openProductForm(b.dataset.id)));
   ul.querySelectorAll('.delete-product').forEach((b) => b.addEventListener('click', () => deleteProduct(b.dataset.id)));
 }
 
-document.getElementById('seedData').addEventListener('click', async () => {
-  if (!confirm('Load PDF product list? This only adds new products/specs.')) return;
-  try {
-    await api('/seed', { method: 'POST' });
-    await loadAll();
-    renderProductList();
-  } catch (err) {
-    alert(err.message);
-  }
-});
+const seedDataBtn = document.getElementById('seedData');
+if (seedDataBtn) {
+  seedDataBtn.addEventListener('click', async () => {
+    if (!confirm('Load PDF product list? This only adds new products/specs.')) return;
+    try {
+      await api('/seed', { method: 'POST' });
+      await loadAll();
+      renderProductList();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
 
-document.getElementById('manageProducts').addEventListener('click', (e) => {
-  e.preventDefault();
-  openProductsModal();
-});
-document.getElementById('closeProductsModal').addEventListener('click', closeProductsModal);
+const manageProductsLink = document.getElementById('manageProducts');
+if (manageProductsLink) {
+  manageProductsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    setAdminTab('products');
+    renderProductList();
+  });
+}
 
 function openProductForm(productId = null) {
   const isEdit = !!productId;
@@ -860,13 +919,9 @@ function openProductForm(productId = null) {
     const product = state.products.find((p) => p.id === productId);
     if (product) {
       document.getElementById('productName').value = product.name;
-      const availableEl = document.getElementById('productAvailable');
-      if (availableEl) availableEl.checked = !!product.available;
       (product.specs || []).forEach((s) => addSpecRow(container, s));
     }
   } else {
-    const availableEl = document.getElementById('productAvailable');
-    if (availableEl) availableEl.checked = false;
     addSpecRow(container);
   }
 
@@ -876,20 +931,24 @@ function openProductForm(productId = null) {
 function addSpecRow(container, spec = null) {
   const div = document.createElement('div');
   div.className = 'spec-row';
+  const availChecked = spec?.available ? 'checked' : '';
   div.innerHTML = `
     <input type="text" placeholder="Spec" value="${spec ? escapeHtml(spec.spec) : ''}" data-spec />
     <input type="number" placeholder="Price" step="0.01" value="${spec ? spec.price : ''}" data-price />
     <input type="text" placeholder="Cat.No" value="${spec ? escapeHtml(spec.cat_no || '') : ''}" data-catno />
-    <button type="button" class="btn btn-small spec-image-btn" data-upload-image>${spec?.id ? 'Add image' : 'Save product first'}</button>
+    <label class="spec-avail-label"><input type="checkbox" data-available ${availChecked} /> Store</label>
+    <span class="spec-row-image-cell">
+      <button type="button" class="btn btn-small spec-image-btn" data-upload-image>${spec?.id ? 'Add image' : 'Save product first'}</button>
+      <input type="file" accept="image/*" data-image-input style="display:none;" />
+    </span>
     <button type="button" class="btn btn-small remove-spec">−</button>
-    <input type="file" accept="image/*" data-image-input style="display:none;" />
-    ${spec?.image_url ? `<a href="${escapeHtml(spec.image_url)}" target="_blank" rel="noreferrer">View image</a>` : ''}
+    ${spec?.image_url ? `<a href="${escapeHtml(spec.image_url)}" target="_blank" rel="noreferrer">View</a>` : '<span></span>'}
   `;
   if (spec?.id) div.dataset.specId = spec.id;
   container.appendChild(div);
   div.querySelector('.remove-spec').addEventListener('click', () => div.remove());
   const uploadBtn = div.querySelector('[data-upload-image]');
-  const input = div.querySelector('[data-image-input]');
+  const input = div.querySelector('input[data-image-input]');
   uploadBtn.addEventListener('click', () => {
     if (!div.dataset.specId) {
       alert('Save the product/spec first, then upload an image.');
@@ -941,13 +1000,13 @@ function closeProductForm() {
 document.getElementById('closeProductForm').addEventListener('click', closeProductForm);
 document.getElementById('cancelProductForm').addEventListener('click', closeProductForm);
 
-document.getElementById('addProduct').addEventListener('click', () => openProductForm());
+const addProductBtn = document.getElementById('addProduct');
+if (addProductBtn) addProductBtn.addEventListener('click', () => openProductForm());
 
 document.getElementById('productForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const productId = document.getElementById('productId').value;
   const name = document.getElementById('productName').value.trim();
-  const available = !!document.getElementById('productAvailable')?.checked;
   if (!name) return;
 
   const specRows = document.querySelectorAll('#specsContainer .spec-row');
@@ -956,11 +1015,13 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
     const spec = row.querySelector('[data-spec]').value.trim();
     const price = parseFloat(row.querySelector('[data-price]').value);
     if (!spec || isNaN(price)) return;
+    const availEl = row.querySelector('[data-available]');
     specs.push({
       id: row.dataset.specId,
       spec,
       price,
       cat_no: row.querySelector('[data-catno]').value.trim() || null,
+      available: !!(availEl && availEl.checked),
     });
   });
   if (specs.length === 0) {
@@ -972,14 +1033,30 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
     if (productId) {
       await api(`/products/${productId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ name, available }),
+        body: JSON.stringify({ name }),
       });
       const existing = (state.products.find((p) => p.id === productId)?.specs || []).map((s) => s.id);
       for (const s of specs) {
         if (s.id) {
-          await api(`/specs/${s.id}`, { method: 'PATCH', body: JSON.stringify({ spec: s.spec, price: s.price, cat_no: s.cat_no }) });
+          await api(`/specs/${s.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              spec: s.spec,
+              price: s.price,
+              cat_no: s.cat_no,
+              available: s.available,
+            }),
+          });
         } else {
-          await api(`/products/${productId}/specs`, { method: 'POST', body: JSON.stringify({ spec: s.spec, price: s.price, cat_no: s.cat_no }) });
+          await api(`/products/${productId}/specs`, {
+            method: 'POST',
+            body: JSON.stringify({
+              spec: s.spec,
+              price: s.price,
+              cat_no: s.cat_no,
+              available: s.available,
+            }),
+          });
         }
       }
       for (const id of existing) {
@@ -988,15 +1065,23 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
     } else {
       const created = await api('/products', {
         method: 'POST',
-        body: JSON.stringify({ name, available }),
+        body: JSON.stringify({ name }),
       });
       for (const s of specs) {
-        await api(`/products/${created.id}/specs`, { method: 'POST', body: JSON.stringify({ spec: s.spec, price: s.price, cat_no: s.cat_no }) });
+        await api(`/products/${created.id}/specs`, {
+          method: 'POST',
+          body: JSON.stringify({
+            spec: s.spec,
+            price: s.price,
+            cat_no: s.cat_no,
+            available: s.available,
+          }),
+        });
       }
     }
     closeProductForm();
     await loadAll();
-    if (!productId) closeProductsModal();
+    renderProductList();
   } catch (err) {
     alert(err.message);
   }
@@ -1393,4 +1478,5 @@ async function initAdminSession() {
   await loadAll();
 }
 
+initAdminTabs();
 initAdminSession();

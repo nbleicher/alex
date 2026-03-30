@@ -18,87 +18,136 @@
     </div>
   </header>
 
-  <main class="main two-col">
-    <section class="panel spend-panel">
-      <h2>Spend</h2>
-      <div class="table-wrap">
-        <table class="data-table" id="spendTable">
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Status</th>
-              <th>Summary</th>
-              <th class="num">Order total</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="spendBody"></tbody>
-        </table>
-      </div>
-      <button type="button" class="btn btn-add" id="addPurchase">+ Add purchase</button>
-      <p class="total-line">
-        <strong>Total spend:</strong>
-        <span id="totalSpend">$0</span>
-        <button type="button" class="btn btn-small" id="editTotalSpend">Edit</button>
-      </p>
-    </section>
+  <nav class="admin-tab-bar" role="tablist" aria-label="Admin sections">
+    <button type="button" class="admin-tab active" role="tab" id="tabBtnGainLoss" data-admin-tab="gainloss" aria-selected="true">Gain / Loss</button>
+    <button type="button" class="admin-tab" role="tab" id="tabBtnProducts" data-admin-tab="products" aria-selected="false">Manage products</button>
+    <button type="button" class="admin-tab" role="tab" id="tabBtnInventory" data-admin-tab="inventory" aria-selected="false">Inventory</button>
+    <button type="button" class="admin-tab" role="tab" id="tabBtnOrders" data-admin-tab="orders" aria-selected="false">Orders</button>
+  </nav>
 
-    <section class="panel right-panel">
-      <section class="sales-section">
-        <h2>Sales</h2>
-        <div class="filter-row">
-          <label>Client
-            <select id="salesClientFilter">
-              <option value="">All</option>
-            </select>
-          </label>
-        </div>
+  <div id="tabGainLoss" class="admin-tab-panel active" role="tabpanel" data-panel="gainloss">
+    <main class="main two-col">
+      <section class="panel spend-panel">
+        <h2>Spend</h2>
         <div class="table-wrap">
-          <table class="data-table" id="salesTable">
+          <table class="data-table" id="spendTable">
             <thead>
               <tr>
-                <th>Sale date</th>
-                <th>Client</th>
-                <th>Item</th>
-                <th>Qty sold</th>
-                <th>Sell price</th>
-                <th>Revenue</th>
+                <th>Order</th>
+                <th>Status</th>
+                <th>Summary</th>
+                <th class="num">Order total</th>
                 <th></th>
               </tr>
             </thead>
-            <tbody id="salesBody"></tbody>
+            <tbody id="spendBody"></tbody>
           </table>
         </div>
-        <button type="button" class="btn btn-add" id="addSale">+ Add sale</button>
+        <button type="button" class="btn btn-add" id="addPurchase">+ Add purchase</button>
         <p class="total-line">
-          <strong>Total revenue:</strong>
-          <span id="totalRevenue">$0</span>
-          <button type="button" class="btn btn-small" id="editTotalRevenue">Edit</button>
+          <strong>Total spend:</strong>
+          <span id="totalSpend">$0</span>
+          <button type="button" class="btn btn-small" id="editTotalSpend">Edit</button>
         </p>
       </section>
-    </section>
 
-    <section class="panel summary-panel">
-      <h2>Net profit</h2>
-      <div class="summary-box" id="summaryBox">
-        <div class="summary-row"><span>Total spend</span><span id="sumSpend">$0</span></div>
-        <div class="summary-row"><span>Total revenue</span><span id="sumRevenue">$0</span></div>
-        <div class="summary-row highlight"><span>Net profit</span><span id="netProfit">$0</span></div>
-        <div class="summary-row">
-          <button type="button" class="btn btn-small" id="viewOverrideHistory">View edit history</button>
-        </div>
-        <div class="summary-row" id="totalsMetaRow" style="display:none;">
-          <span></span>
-          <span id="totalsMetaText"></span>
-        </div>
-      </div>
-    </section>
+      <section class="panel right-panel">
+        <section class="sales-section">
+          <h2>Sales</h2>
+          <div class="filter-row">
+            <label>Client
+              <select id="salesClientFilter">
+                <option value="">All</option>
+              </select>
+            </label>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="salesTable">
+              <thead>
+                <tr>
+                  <th>Sale date</th>
+                  <th>Client</th>
+                  <th>Item</th>
+                  <th>Qty sold</th>
+                  <th>Sell price</th>
+                  <th>Revenue</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="salesBody"></tbody>
+            </table>
+          </div>
+          <button type="button" class="btn btn-add" id="addSale">+ Add sale</button>
+          <p class="total-line">
+            <strong>Total revenue:</strong>
+            <span id="totalRevenue">$0</span>
+            <button type="button" class="btn btn-small" id="editTotalRevenue">Edit</button>
+          </p>
+        </section>
+      </section>
 
-    <section class="panel summary-panel">
-      <h2>Orders</h2>
-      <div id="ordersColumns" class="orders-columns"></div>
-    </section>
-  </main>
+      <section class="panel summary-panel">
+        <h2>Net profit</h2>
+        <div class="summary-box" id="summaryBox">
+          <div class="summary-row"><span>Total spend</span><span id="sumSpend">$0</span></div>
+          <div class="summary-row"><span>Total revenue</span><span id="sumRevenue">$0</span></div>
+          <div class="summary-row highlight"><span>Net profit</span><span id="netProfit">$0</span></div>
+          <div class="summary-row">
+            <button type="button" class="btn btn-small" id="viewOverrideHistory">View edit history</button>
+          </div>
+          <div class="summary-row" id="totalsMetaRow" style="display:none;">
+            <span></span>
+            <span id="totalsMetaText"></span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="tabProducts" class="admin-tab-panel" role="tabpanel" data-panel="products" hidden>
+    <main class="main admin-tab-main">
+      <section class="panel">
+        <h2>Manage products</h2>
+        <p class="text-muted">Per-spec &quot;Available&quot; controls the consumer storefront. Images are per spec.</p>
+        <button type="button" class="btn btn-primary" id="addProduct">+ Add product</button>
+        <button type="button" class="btn btn-small" id="seedData" title="Load PDF product list once">Seed PDF data</button>
+        <ul class="product-list" id="productList"></ul>
+      </section>
+    </main>
+  </div>
+
+  <div id="tabInventory" class="admin-tab-panel" role="tabpanel" data-panel="inventory" hidden>
+    <main class="main admin-tab-main">
+      <section class="panel">
+        <h2>Inventory (Delivered only)</h2>
+        <p class="text-muted">Lines from Spend with status <strong>Delivered</strong> and quantity &gt; 0. Consumer orders reserve only from this pool.</p>
+        <div class="table-wrap">
+          <table class="data-table" id="inventoryDeliveredTable">
+            <thead>
+              <tr>
+                <th>Cat.No</th>
+                <th>Product</th>
+                <th>Spec</th>
+                <th class="num">Cost</th>
+                <th class="num">Qty</th>
+                <th class="num">Total</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryDeliveredBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="tabOrders" class="admin-tab-panel" role="tabpanel" data-panel="orders" hidden>
+    <main class="main admin-tab-main">
+      <section class="panel summary-panel">
+        <h2>Orders</h2>
+        <div id="ordersColumns" class="orders-columns"></div>
+      </section>
+    </main>
+  </div>
 
   <div class="modal" id="adminLoginModal" aria-hidden="true">
     <div class="modal-content">
@@ -116,20 +165,6 @@
     </div>
   </div>
 
-  <div class="modal" id="productsModal" aria-hidden="true">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Manage products</h2>
-        <button type="button" class="btn-close" id="closeProductsModal" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <button type="button" class="btn btn-primary" id="addProduct">+ Add product</button>
-        <button type="button" class="btn btn-small" id="seedData" title="Load PDF product list once">Seed PDF data</button>
-        <ul class="product-list" id="productList"></ul>
-      </div>
-    </div>
-  </div>
-
   <div class="modal" id="productFormModal" aria-hidden="true">
     <div class="modal-content modal-wide">
       <div class="modal-header">
@@ -140,7 +175,6 @@
         <form id="productForm">
           <input type="hidden" id="productId" />
           <label>Product name <input type="text" id="productName" required /></label>
-          <label><input type="checkbox" id="productAvailable" /> Available on consumer site</label>
           <fieldset class="specs-fieldset">
             <legend>Specs</legend>
             <div id="specsContainer"></div>
