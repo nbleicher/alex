@@ -58,9 +58,9 @@ summaryRouter.get('/', async (req, res) => {
         const v = Number(latest.spend_adjustment);
         spendAdjustment = Number.isFinite(v) ? v : 0;
       } else if (latest.manual_total_spend != null) {
-        // Legacy fallback for rows created before spend_adjustment existed.
-        const legacy = Number(latest.manual_total_spend) - computedTotalSpend;
-        spendAdjustment = Number.isFinite(legacy) ? legacy : 0;
+        // Legacy rows had absolute manual totals, which froze spend.
+        // Ignore them here so new purchases continue to change spend.
+        spendAdjustment = 0;
       }
     }
 

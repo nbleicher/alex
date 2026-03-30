@@ -149,7 +149,8 @@ function renderSpendTable() {
         0,
       );
       const orderLabel = (() => {
-        const d = new Date(rows[0].purchase_date || rows[0].created_at);
+        // Display using the grouped date key to avoid timezone day-shift.
+        const d = new Date(`${dateKey}T00:00:00`);
         if (Number.isNaN(d.getTime())) return dateKey;
         return d.toLocaleDateString(undefined, {
           year: 'numeric',
