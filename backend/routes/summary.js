@@ -3,41 +3,68 @@ import { supabase } from '../db.js';
 
 export const summaryRouter = Router();
 
-// GET /summary – totalSpend, totalRevenue, netProfit (with optional manual overrides)
-summaryRouter.get('/', async (req, res) => {
-  try {
-    const { data: inv } = await supabase.from('inventory').select(`
+async function getComputedTotals() {
+  const { data: inv, error: invError } = await supabase.from('inventory').select(`
       quantity,
       unit_cost,
       product_specs ( price )
     `);
-    let computedTotalSpend = 0;
-    for (const row of inv || []) {
-      const catalog = row.product_specs?.price != null ? Number(row.product_specs.price) : 0;
-      const unit =
-        row.unit_cost != null && row.unit_cost !== '' ? Number(row.unit_cost) : catalog;
-      const price = Number.isFinite(unit) ? unit : 0;
-      computedTotalSpend += price * (row.quantity || 0);
+  if (invError) throw invError;
+  let computedTotalSpend = 0;
+  for (const row of inv || []) {
+    const catalog = row.product_specs?.price != null ? Number(row.product_specs.price) : 0;
+    const unit =
+      row.unit_cost != null && row.unit_cost !== '' ? Number(row.unit_cost) : catalog;
+    const price = Number.isFinite(unit) ? unit : 0;
+    computedTotalSpend += price * (row.quantity || 0);
+  }
+
+  const { data: salesRows, error: salesError } = await supabase.from('sales').select('revenue');
+  if (salesError) throw salesError;
+  let computedTotalRevenue = 0;
+  for (const row of salesRows || []) {
+    computedTotalRevenue += Number(row.revenue) || 0;
+  }
+
+  return {
+    computedTotalSpend,
+    computedTotalRevenue,
+    computedNetProfit: computedTotalRevenue - computedTotalSpend,
+  };
+}
+
+async function getLatestOverride() {
+  const { data: overrides, error: overrideError } = await supabase
+    .from('summary_overrides')
+    .select(
+      'manual_total_spend, manual_total_revenue, spend_adjustment, reason, effective_from, created_at',
+    )
+    .order('effective_from', { ascending: false })
+    .limit(1);
+  if (overrideError) throw overrideError;
+  return overrides && overrides.length > 0 ? overrides[0] : null;
+}
+
+// GET /summary – totalSpend, totalRevenue, netProfit (with optional manual overrides)
+summaryRouter.get('/', async (req, res) => {
+  try {
+    const { computedTotalSpend, computedTotalRevenue, computedNetProfit } =
+      await getComputedTotals();
+    const latest = await getLatestOverride();
+
+    let spendAdjustment = 0;
+    if (latest) {
+      if (latest.spend_adjustment != null) {
+        const v = Number(latest.spend_adjustment);
+        spendAdjustment = Number.isFinite(v) ? v : 0;
+      } else if (latest.manual_total_spend != null) {
+        // Legacy fallback for rows created before spend_adjustment existed.
+        const legacy = Number(latest.manual_total_spend) - computedTotalSpend;
+        spendAdjustment = Number.isFinite(legacy) ? legacy : 0;
+      }
     }
 
-    const { data: salesRows } = await supabase.from('sales').select('revenue');
-    let computedTotalRevenue = 0;
-    for (const row of salesRows || []) {
-      computedTotalRevenue += Number(row.revenue) || 0;
-    }
-
-    const computedNetProfit = computedTotalRevenue - computedTotalSpend;
-
-    // Look for latest manual total overrides
-    const { data: overrides, error: overrideError } = await supabase
-      .from('summary_overrides')
-      .select('manual_total_spend, manual_total_revenue, reason, effective_from, created_at')
-      .order('effective_from', { ascending: false })
-      .limit(1);
-    if (overrideError) throw overrideError;
-
-    const latest = overrides && overrides.length > 0 ? overrides[0] : null;
-    const totalSpend = latest && latest.manual_total_spend != null ? Number(latest.manual_total_spend) : computedTotalSpend;
+    const totalSpend = computedTotalSpend + spendAdjustment;
     const totalRevenue =
       latest && latest.manual_total_revenue != null ? Number(latest.manual_total_revenue) : computedTotalRevenue;
     const netProfit = totalRevenue - totalSpend;
@@ -71,6 +98,8 @@ summaryRouter.post('/override-totals', async (req, res) => {
     if (manual_total_spend != null && manual_total_spend !== '') {
       const v = Number(manual_total_spend);
       if (!Number.isFinite(v)) return res.status(400).json({ error: 'manual_total_spend must be a number' });
+      const { computedTotalSpend } = await getComputedTotals();
+      payload.spend_adjustment = v - computedTotalSpend;
       payload.manual_total_spend = v;
     }
     if (manual_total_revenue != null && manual_total_revenue !== '') {
@@ -81,7 +110,9 @@ summaryRouter.post('/override-totals', async (req, res) => {
     const { data, error } = await supabase
       .from('summary_overrides')
       .insert(payload)
-      .select('id, manual_total_spend, manual_total_revenue, reason, effective_from, created_at')
+      .select(
+        'id, manual_total_spend, manual_total_revenue, spend_adjustment, reason, effective_from, created_at',
+      )
       .single();
     if (error) throw error;
     res.status(201).json(data);
@@ -95,7 +126,9 @@ summaryRouter.get('/overrides', async (_req, res) => {
   try {
     const { data, error } = await supabase
       .from('summary_overrides')
-      .select('id, manual_total_spend, manual_total_revenue, reason, effective_from, created_at')
+      .select(
+        'id, manual_total_spend, manual_total_revenue, spend_adjustment, reason, effective_from, created_at',
+      )
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json(data || []);

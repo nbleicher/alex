@@ -65,7 +65,9 @@ create table if not exists summary_overrides (
   id uuid primary key default gen_random_uuid(),
   manual_total_spend numeric(12,2),
   manual_total_revenue numeric(12,2),
+  spend_adjustment numeric(12,2),
   reason text,
   effective_from timestamptz default now(),
   created_at timestamptz default now()
 );
+alter table if exists summary_overrides add column if not exists spend_adjustment numeric(12,2);

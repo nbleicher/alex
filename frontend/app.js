@@ -626,7 +626,7 @@ function renderSummary() {
       const when = d && !Number.isNaN(d.getTime()) ? d.toLocaleString() : '';
       const r = s.latestOverride.reason || '';
       totalsMetaRow.style.display = '';
-      totalsMetaText.textContent = `Edited totals permanently${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
+      totalsMetaText.textContent = `Manual total adjustment applied${when ? ` on ${when}` : ''}${r ? ` – ${r}` : ''}`;
     } else {
       totalsMetaRow.style.display = 'none';
       totalsMetaText.textContent = '';
