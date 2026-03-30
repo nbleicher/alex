@@ -158,18 +158,20 @@ function renderInventoryTab() {
     return da - db;
   });
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6">No delivered inventory.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">No delivered inventory.</td></tr>';
     return;
   }
   tbody.innerHTML = rows
     .map((r) => {
       const line = toNumber(r.price) * toNumber(r.quantity);
+      const vials = toNumber(r.quantity) * 10;
       return `<tr>
         <td>${escapeHtml(r.cat_no || '-')}</td>
         <td>${escapeHtml(r.product_name || '')}</td>
         <td>${escapeHtml(r.spec || '')}</td>
         <td class="num">${formatMoney(r.price)}</td>
         <td class="num">${r.quantity}</td>
+        <td class="num">${vials}</td>
         <td class="num">${formatMoney(line)}</td>
       </tr>`;
     })
