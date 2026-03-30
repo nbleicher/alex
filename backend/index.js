@@ -14,9 +14,24 @@ import { requireAdmin } from './lib/admin-session.js';
 const app = express();
 const PORT = process.env.PORT || 3000;
 const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:3000';
-const origins = corsOrigin.split(',').map(s => s.trim());
+const origins = corsOrigin
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
-app.use(cors({ origin: origins }));
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (origins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Origin not allowed by CORS: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 app.get('/health', (_, res) => res.json({ ok: true }));

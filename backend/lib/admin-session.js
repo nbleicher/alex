@@ -50,26 +50,32 @@ export function verifyAdminSessionToken(token) {
 
 export function setAdminSessionCookie(res, token) {
   const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = process.env.ADMIN_COOKIE_SAMESITE || 'Lax';
+  const cookieDomain = (process.env.ADMIN_COOKIE_DOMAIN || '').trim();
   const attrs = [
     `${COOKIE_NAME}=${encodeURIComponent(token)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${sameSite}`,
     `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`,
   ];
+  if (cookieDomain) attrs.push(`Domain=${cookieDomain}`);
   if (isProd) attrs.push('Secure');
   res.setHeader('Set-Cookie', attrs.join('; '));
 }
 
 export function clearAdminSessionCookie(res) {
   const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = process.env.ADMIN_COOKIE_SAMESITE || 'Lax';
+  const cookieDomain = (process.env.ADMIN_COOKIE_DOMAIN || '').trim();
   const attrs = [
     `${COOKIE_NAME}=`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${sameSite}`,
     'Max-Age=0',
   ];
+  if (cookieDomain) attrs.push(`Domain=${cookieDomain}`);
   if (isProd) attrs.push('Secure');
   res.setHeader('Set-Cookie', attrs.join('; '));
 }
