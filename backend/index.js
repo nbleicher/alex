@@ -7,6 +7,9 @@ import { inventoryRouter } from './routes/inventory.js';
 import { salesRouter } from './routes/sales.js';
 import { summaryRouter } from './routes/summary.js';
 import { seedRouter } from './routes/seed.js';
+import { adminAuthRouter } from './routes/admin-auth.js';
+import { ordersRouter } from './routes/orders.js';
+import { requireAdmin } from './lib/admin-session.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,12 +31,17 @@ app.use((req, res, next) => {
 });
 
 app.use('/products', productsRouter);
-app.use('/products', specsRouter);
-app.use('/specs', specsRouter);
-app.use('/inventory', inventoryRouter);
-app.use('/sales', salesRouter);
-app.use('/summary', summaryRouter);
-app.use('/seed', seedRouter);
+app.use('/admin-auth', adminAuthRouter);
+app.use('/products', requireAdmin, specsRouter);
+app.use('/specs', requireAdmin, specsRouter);
+app.use('/inventory', requireAdmin, inventoryRouter);
+app.use('/sales', requireAdmin, salesRouter);
+app.use('/summary', requireAdmin, summaryRouter);
+app.use('/seed', requireAdmin, seedRouter);
+app.use('/orders', (req, res, next) => {
+  if (req.method === 'POST') return next();
+  return requireAdmin(req, res, next);
+}, ordersRouter);
 
 app.use((_, res) => {
   res.status(404).json({ error: 'Not found' });

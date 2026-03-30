@@ -5,6 +5,7 @@ async function api(path, options = {}) {
   const url = `${API}${path}`;
   const res = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...options.headers },
   });
   const text = await res.text();
@@ -31,6 +32,7 @@ let state = {
   products: [],
   inventory: [],
   sales: [],
+  orders: [],
   summary: {
     totalSpend: 0,
     totalRevenue: 0,
@@ -46,15 +48,17 @@ let state = {
 
 async function loadAll() {
   try {
-    const [products, inventory, sales, summary] = await Promise.all([
+    const [products, inventory, sales, summary, orders] = await Promise.all([
       api('/products'),
       api('/inventory'),
       api('/sales'),
       api('/summary'),
+      api('/orders'),
     ]);
     state.products = products || [];
     state.inventory = inventory || [];
     state.sales = sales || [];
+    state.orders = orders || [];
     state.summary =
       summary || {
         totalSpend: 0,
@@ -112,6 +116,7 @@ function render() {
   renderSpendTable();
   renderSalesTable();
   renderSummary();
+  renderOrdersBoard();
 }
 
 function renderSpendTable() {
@@ -635,6 +640,65 @@ function renderSummary() {
   }
 }
 
+function renderOrdersBoard() {
+  const root = document.getElementById('ordersColumns');
+  if (!root) return;
+  const columns = [
+    { key: 'processing', label: 'Processing', cls: 'order-col-processing' },
+    { key: 'payment_received', label: 'Payment received', cls: 'order-col-payment' },
+    { key: 'fulfilled', label: 'Fulfilled', cls: 'order-col-fulfilled' },
+  ];
+  const orders = state.orders || [];
+  root.innerHTML = columns
+    .map((col) => {
+      const list = orders.filter((o) => o.status === col.key);
+      const cards = list
+        .map((o) => {
+          const items = (o.items || [])
+            .map((it) => {
+              const missing = Math.max(0, toNumber(it.ordered_quantity) - toNumber(it.reserved_quantity));
+              return `<li>${escapeHtml(it.product_name_snapshot)} ${escapeHtml(it.spec_snapshot)} - qty ${it.ordered_quantity}${missing > 0 ? ` <span class="error">(missing ${missing})</span>` : ''}</li>`;
+            })
+            .join('');
+          const nextStatus =
+            o.status === 'processing'
+              ? 'payment_received'
+              : o.status === 'payment_received'
+                ? 'fulfilled'
+                : null;
+          return `
+            <article class="order-card ${col.cls}">
+              <strong>${escapeHtml(o.order_number)}</strong>
+              <div>${escapeHtml(o.first_name)} ${escapeHtml(o.last_name)} · ${escapeHtml(o.phone)}</div>
+              <ul>${items}</ul>
+              ${
+                nextStatus
+                  ? `<button class="btn btn-small" data-next-order-status="${o.id}" data-next-status="${nextStatus}">Move to ${nextStatus.replace('_', ' ')}</button>`
+                  : ''
+              }
+            </article>
+          `;
+        })
+        .join('');
+      return `<section class="orders-col"><h3>${col.label}</h3>${cards || '<p>No orders</p>'}</section>`;
+    })
+    .join('');
+
+  root.querySelectorAll('[data-next-order-status]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try {
+        await api(`/orders/${btn.dataset.nextOrderStatus}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: btn.dataset.nextStatus }),
+        });
+        await loadAll();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+}
+
 function escapeHtml(s) {
   if (s == null) return '';
   const div = document.createElement('div');
@@ -756,7 +820,7 @@ function renderProductList() {
     .map(
       (p) => `
     <li>
-      <span class="name">${escapeHtml(p.name)}</span>
+      <span class="name">${escapeHtml(p.name)} ${p.available ? '• available' : ''}</span>
       <button type="button" class="btn btn-small edit-product" data-id="${p.id}">Edit</button>
       <button type="button" class="btn-delete delete-product" data-id="${p.id}" aria-label="Delete">×</button>
     </li>`
@@ -796,9 +860,13 @@ function openProductForm(productId = null) {
     const product = state.products.find((p) => p.id === productId);
     if (product) {
       document.getElementById('productName').value = product.name;
+      const availableEl = document.getElementById('productAvailable');
+      if (availableEl) availableEl.checked = !!product.available;
       (product.specs || []).forEach((s) => addSpecRow(container, s));
     }
   } else {
+    const availableEl = document.getElementById('productAvailable');
+    if (availableEl) availableEl.checked = false;
     addSpecRow(container);
   }
 
@@ -812,11 +880,56 @@ function addSpecRow(container, spec = null) {
     <input type="text" placeholder="Spec" value="${spec ? escapeHtml(spec.spec) : ''}" data-spec />
     <input type="number" placeholder="Price" step="0.01" value="${spec ? spec.price : ''}" data-price />
     <input type="text" placeholder="Cat.No" value="${spec ? escapeHtml(spec.cat_no || '') : ''}" data-catno />
+    <button type="button" class="btn btn-small spec-image-btn" data-upload-image>${spec?.id ? 'Add image' : 'Save product first'}</button>
     <button type="button" class="btn btn-small remove-spec">−</button>
+    <input type="file" accept="image/*" data-image-input style="display:none;" />
+    ${spec?.image_url ? `<a href="${escapeHtml(spec.image_url)}" target="_blank" rel="noreferrer">View image</a>` : ''}
   `;
   if (spec?.id) div.dataset.specId = spec.id;
   container.appendChild(div);
   div.querySelector('.remove-spec').addEventListener('click', () => div.remove());
+  const uploadBtn = div.querySelector('[data-upload-image]');
+  const input = div.querySelector('[data-image-input]');
+  uploadBtn.addEventListener('click', () => {
+    if (!div.dataset.specId) {
+      alert('Save the product/spec first, then upload an image.');
+      return;
+    }
+    input.click();
+  });
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file || !div.dataset.specId) return;
+    try {
+      const b64 = await fileToBase64(file);
+      await api(`/specs/${div.dataset.specId}/image`, {
+        method: 'POST',
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type || 'image/jpeg',
+          dataBase64: b64,
+        }),
+      });
+      await loadAll();
+      const currentId = document.getElementById('productId').value;
+      openProductForm(currentId);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const res = String(reader.result || '');
+      const base64 = res.includes(',') ? res.split(',')[1] : res;
+      resolve(base64);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 document.getElementById('addSpecRow').addEventListener('click', () => addSpecRow(document.getElementById('specsContainer')));
@@ -834,6 +947,7 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const productId = document.getElementById('productId').value;
   const name = document.getElementById('productName').value.trim();
+  const available = !!document.getElementById('productAvailable')?.checked;
   if (!name) return;
 
   const specRows = document.querySelectorAll('#specsContainer .spec-row');
@@ -856,7 +970,10 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
 
   try {
     if (productId) {
-      await api(`/products/${productId}`, { method: 'PATCH', body: JSON.stringify({ name }) });
+      await api(`/products/${productId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name, available }),
+      });
       const existing = (state.products.find((p) => p.id === productId)?.specs || []).map((s) => s.id);
       for (const s of specs) {
         if (s.id) {
@@ -869,7 +986,10 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
         if (!specs.some((s) => s.id === id)) await api(`/specs/${id}`, { method: 'DELETE' });
       }
     } else {
-      const created = await api('/products', { method: 'POST', body: JSON.stringify({ name }) });
+      const created = await api('/products', {
+        method: 'POST',
+        body: JSON.stringify({ name, available }),
+      });
       for (const s of specs) {
         await api(`/products/${created.id}/specs`, { method: 'POST', body: JSON.stringify({ spec: s.spec, price: s.price, cat_no: s.cat_no }) });
       }
@@ -1212,4 +1332,65 @@ if (viewOverrideHistoryBtn && overridesHistoryModal && closeOverridesHistoryBtn 
   closeOverridesHistoryBtn.addEventListener('click', closeOverridesHistory);
 }
 
-loadAll();
+async function initAdminSession() {
+  const loginModal = document.getElementById('adminLoginModal');
+  const loginForm = document.getElementById('adminLoginForm');
+  const loginError = document.getElementById('adminLoginError');
+  const adminCog = document.getElementById('adminCog');
+
+  const showLogin = () => {
+    if (loginModal) loginModal.setAttribute('aria-hidden', 'false');
+  };
+  const hideLogin = () => {
+    if (loginModal) loginModal.setAttribute('aria-hidden', 'true');
+  };
+
+  async function checkAuth() {
+    try {
+      const me = await api('/admin-auth/me');
+      return !!me?.authenticated;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (loginError) loginError.textContent = '';
+      try {
+        await api('/admin-auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: document.getElementById('adminUsername').value.trim(),
+            password: document.getElementById('adminPassword').value,
+          }),
+        });
+        hideLogin();
+        await loadAll();
+      } catch (err) {
+        if (loginError) loginError.textContent = err.message;
+      }
+    });
+  }
+
+  if (adminCog) {
+    adminCog.addEventListener('click', async () => {
+      const isAuthed = await checkAuth();
+      if (isAuthed) {
+        await api('/admin-auth/logout', { method: 'POST' });
+      }
+      showLogin();
+    });
+  }
+
+  const isAuthed = await checkAuth();
+  if (!isAuthed) {
+    showLogin();
+    return;
+  }
+  hideLogin();
+  await loadAll();
+}
+
+initAdminSession();

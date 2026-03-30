@@ -4,293 +4,63 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="api-base" content="https://alex-production-ae9d.up.railway.app" />
-  <title>A Roids – Spend & Profit</title>
+  <title>Savage Peptides</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="consumer.css" />
   <script>window.API_BASE_URL = document.querySelector('meta[name="api-base"]')?.getAttribute('content') || '';</script>
 </head>
 <body>
-  <header class="header">
-    <h1 class="logo">A Roids</h1>
-    <a href="#" class="manage-link" id="manageProducts">Manage products</a>
+  <header class="consumer-header">
+    <div></div>
+    <h1>SAVAGE PEPTIDES</h1>
+    <div class="header-actions">
+      <button id="openAdmin" class="icon-btn" title="Admin">⚙</button>
+      <button id="openCart" class="icon-btn cart-btn" title="Cart">🛒 <span id="cartCount">0</span></button>
+    </div>
   </header>
 
-  <div class="brand-image-wrap">
-    <img src="favicon.png" alt="A Roids" class="brand-image" />
-  </div>
-
-  <main class="main two-col">
-    <section class="panel spend-panel">
-      <h2>Spend</h2>
-      <div class="table-wrap">
-        <table class="data-table" id="spendTable">
-          <thead>
-            <tr>
-              <th>Order</th>
-              <th>Status</th>
-              <th>Summary</th>
-              <th class="num">Order total</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="spendBody"></tbody>
-        </table>
-      </div>
-      <button type="button" class="btn btn-add" id="addPurchase">+ Add purchase</button>
-      <p class="total-line">
-        <strong>Total spend:</strong>
-        <span id="totalSpend">$0</span>
-        <button type="button" class="btn btn-small" id="editTotalSpend">Edit</button>
-      </p>
-    </section>
-
-    <section class="panel right-panel">
-      <section class="sales-section">
-        <h2>Sales</h2>
-        <div class="filter-row">
-          <label>Client
-            <select id="salesClientFilter">
-              <option value="">All</option>
-            </select>
-          </label>
-        </div>
-        <div class="table-wrap">
-          <table class="data-table" id="salesTable">
-            <thead>
-              <tr>
-                <th>Sale date</th>
-                <th>Client</th>
-                <th>Item</th>
-                <th>Qty sold</th>
-                <th>Sell price</th>
-                <th>Revenue</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="salesBody"></tbody>
-          </table>
-        </div>
-        <button type="button" class="btn btn-add" id="addSale">+ Add sale</button>
-        <p class="total-line">
-          <strong>Total revenue:</strong>
-          <span id="totalRevenue">$0</span>
-          <button type="button" class="btn btn-small" id="editTotalRevenue">Edit</button>
-        </p>
-      </section>
-    </section>
-
-    <section class="panel summary-panel">
-      <h2>Net profit</h2>
-      <div class="summary-box" id="summaryBox">
-        <div class="summary-row">
-          <span>Total spend</span>
-          <span id="sumSpend">$0</span>
-        </div>
-        <div class="summary-row">
-          <span>Total revenue</span>
-          <span id="sumRevenue">$0</span>
-        </div>
-        <div class="summary-row highlight">
-          <span>Net profit</span>
-          <span id="netProfit">$0</span>
-        </div>
-        <div class="summary-row">
-          <button type="button" class="btn btn-small" id="viewOverrideHistory">View edit history</button>
-        </div>
-        <div class="summary-row" id="totalsMetaRow" style="display:none;">
-          <span></span>
-          <span id="totalsMetaText"></span>
-        </div>
-      </div>
-    </section>
+  <main>
+    <section id="productGrid" class="product-grid"></section>
   </main>
 
-  <!-- Manual totals history modal -->
-  <div class="modal" id="overridesHistoryModal" aria-hidden="true">
-    <div class="modal-content modal-wide">
-      <div class="modal-header">
-        <h2>Manual totals history</h2>
-        <button type="button" class="btn-close" id="closeOverridesHistory" aria-label="Close">&times;</button>
+  <div class="modal" id="cartModal" aria-hidden="true">
+    <div class="card">
+      <div class="card-header">
+        <h2>Cart</h2>
+        <button class="close-btn" id="closeCart">×</button>
       </div>
-      <div class="modal-body">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Total spend</th>
-              <th>Total revenue</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody id="overridesHistoryBody">
-          </tbody>
-        </table>
+      <div id="cartItems"></div>
+      <div class="actions">
+        <button id="checkoutBtn">Checkout</button>
       </div>
     </div>
   </div>
 
-  <!-- Edit total spend modal -->
-  <div class="modal" id="totalSpendModal" aria-hidden="true">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Edit total spend</h2>
-        <button type="button" class="btn-close" id="closeTotalSpendModal" aria-label="Close">&times;</button>
+  <div class="modal" id="checkoutModal" aria-hidden="true">
+    <div class="card">
+      <div class="card-header">
+        <h2>Checkout</h2>
+        <button class="close-btn" id="closeCheckout">×</button>
       </div>
-      <div class="modal-body totals-modal-body">
-        <div class="totals-current-row">
-          <span>Total spend (current)</span>
-          <span id="totalSpendCurrentText">$0</span>
-        </div>
-        <div class="totals-result-row">
-          <span>Resulting total spend</span>
-          <span id="totalSpendResultText">$0</span>
-        </div>
-        <label>
-          Adjustment amount
-          <div class="total-spend-adjust-row">
-            <input type="number" id="totalSpendDelta" step="0.01" placeholder="Amount" />
-            <div class="total-spend-adjust-buttons">
-              <button type="button" class="btn btn-small btn-adjust" id="decrementTotalSpend">−</button>
-              <button type="button" class="btn btn-small btn-adjust" id="incrementTotalSpend">+</button>
-            </div>
-          </div>
-        </label>
-        <label>
-          Reason (optional)
-          <input type="text" id="totalSpendReasonInput" placeholder="Why you are adjusting this total" />
-        </label>
-        <div class="form-actions">
-          <button type="button" class="btn btn-primary" id="saveTotalSpend">Save</button>
-          <button type="button" class="btn" id="cancelTotalSpend">Cancel</button>
-        </div>
-      </div>
+      <form id="checkoutForm" class="checkout-form">
+        <label>First name <input id="firstName" required /></label>
+        <label>Last name <input id="lastName" required /></label>
+        <label>Phone number <input id="phone" required /></label>
+        <label>Referral <input id="referral" /></label>
+        <button type="submit">Submit order</button>
+      </form>
+      <div id="checkoutError" class="error"></div>
     </div>
   </div>
 
-  <!-- Edit total revenue modal -->
-  <div class="modal" id="totalRevenueModal" aria-hidden="true">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Edit total revenue</h2>
-        <button type="button" class="btn-close" id="closeTotalRevenueModal" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body totals-modal-body">
-        <div class="totals-current-row">
-          <span>Total revenue (current)</span>
-          <span id="totalRevenueCurrentText">$0</span>
-        </div>
-        <div class="totals-result-row">
-          <span>Resulting total revenue</span>
-          <span id="totalRevenueResultText">$0</span>
-        </div>
-        <label>
-          Adjustment amount
-          <div class="total-spend-adjust-row">
-            <input type="number" id="totalRevenueDelta" step="0.01" placeholder="Amount" />
-            <div class="total-spend-adjust-buttons">
-              <button type="button" class="btn btn-small btn-adjust" id="decrementTotalRevenue">−</button>
-              <button type="button" class="btn btn-small btn-adjust" id="incrementTotalRevenue">+</button>
-            </div>
-          </div>
-        </label>
-        <label>
-          Reason (optional)
-          <input type="text" id="totalRevenueReasonInput" placeholder="Reason (optional)" />
-        </label>
-        <div class="form-actions">
-          <button type="button" class="btn btn-primary" id="saveTotalRevenue">Save</button>
-          <button type="button" class="btn" id="cancelTotalRevenue">Cancel</button>
-        </div>
-      </div>
+  <div class="modal" id="confirmationModal" aria-hidden="true">
+    <div class="card">
+      <h2>Order submitted</h2>
+      <p id="confirmationText"></p>
+      <button id="closeConfirmation">Close</button>
     </div>
   </div>
 
-  <!-- Manage products modal -->
-  <div class="modal" id="productsModal" aria-hidden="true">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Manage products</h2>
-        <button type="button" class="btn-close" id="closeProductsModal" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <button type="button" class="btn btn-primary" id="addProduct">+ Add product</button>
-        <button type="button" class="btn btn-small" id="seedData" title="Load PDF product list once">Seed PDF data</button>
-        <ul class="product-list" id="productList"></ul>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add/Edit product modal -->
-  <div class="modal" id="productFormModal" aria-hidden="true">
-    <div class="modal-content modal-wide">
-      <div class="modal-header">
-        <h2 id="productFormTitle">Add product</h2>
-        <button type="button" class="btn-close" id="closeProductForm" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form id="productForm">
-          <input type="hidden" id="productId" />
-          <label>Product name <input type="text" id="productName" required /></label>
-          <fieldset class="specs-fieldset">
-            <legend>Specs</legend>
-            <div id="specsContainer"></div>
-            <button type="button" class="btn btn-small" id="addSpecRow">+ Spec</button>
-          </fieldset>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save</button>
-            <button type="button" class="btn" id="cancelProductForm">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add purchase modal -->
-  <div class="modal" id="purchaseModal" aria-hidden="true">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Add purchase</h2>
-        <button type="button" class="btn-close" id="closePurchaseModal" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form id="purchaseForm">
-          <label>Product <select id="purchaseProduct" required></select></label>
-          <label>Spec <select id="purchaseSpec" required></select></label>
-          <label>Unit cost (per kit) <input type="number" id="purchaseUnitCost" step="0.01" min="0" placeholder="Defaults to catalog price" /></label>
-          <label>Quantity (kits) <input type="number" id="purchaseQty" min="0" required /></label>
-          <label>Purchase date <input type="date" id="purchaseDate" /></label>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Add purchase</button>
-            <button type="button" class="btn" id="cancelPurchase">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add sale form (inline or modal) -->
-  <div class="modal" id="saleModal" aria-hidden="true">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2>Add sale</h2>
-        <button type="button" class="btn-close" id="closeSaleModal" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-        <form id="saleForm">
-          <input type="hidden" id="saleId" />
-          <label>Item <select id="saleItem" required></select></label>
-          <label>Qty sold (sub-items) <input type="number" id="saleQty" min="1" required /></label>
-          <label>Sell price (per sub-item) <input type="number" id="salePrice" step="0.01" min="0" required /></label>
-          <label>Client <input type="text" id="saleClient" /></label>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary" id="saleSubmitBtn">Add sale</button>
-            <button type="button" class="btn" id="cancelSale">Cancel</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <script type="module" src="app.js"></script>
+  <script type="module" src="consumer.js"></script>
 </body>
 </html>

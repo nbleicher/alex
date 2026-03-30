@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../db.js';
+import { recomputeOpenOrderReservations } from './orders.js';
 
 export const inventoryRouter = Router();
 const ALLOWED_STATUSES = new Set(['Delivered', 'Shipped', 'Processing', 'Scammed']);
@@ -123,6 +124,7 @@ inventoryRouter.put('/', async (req, res) => {
         .maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ error: 'Inventory row not found' });
+      await recomputeOpenOrderReservations();
       return res.json(data);
     }
 
@@ -176,6 +178,7 @@ inventoryRouter.put('/', async (req, res) => {
 
     const { data, error } = await supabase.from('inventory').insert(row).select().single();
     if (error) throw error;
+    await recomputeOpenOrderReservations();
     res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
