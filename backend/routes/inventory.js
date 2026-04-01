@@ -168,6 +168,9 @@ inventoryRouter.put('/', async (req, res) => {
         }
         row.status = normalizedStatus;
       }
+    } else {
+      // New purchases should default to sellable stock unless explicitly set otherwise.
+      row.status = 'Delivered';
     }
     if (purchase_date) {
       const d = new Date(purchase_date);

@@ -459,3 +459,81 @@ ordersRouter.delete('/:id', async (req, res) => {
   }
 });
 
+ordersRouter.patch('/:id/items', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const productSpecId = String(req.body?.product_spec_id || '').trim();
+    const quantity = Math.max(0, toInt(req.body?.quantity));
+    if (!productSpecId || quantity <= 0) {
+      return res.status(400).json({ error: 'product_spec_id and quantity (>0) are required' });
+    }
+
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, status')
+      .eq('id', orderId)
+      .maybeSingle();
+    if (orderError) throw orderError;
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!OPEN_STATUSES.includes(order.status)) {
+      return res.status(409).json({
+        error: 'Items can only be added to orders in processing or payment_received',
+      });
+    }
+
+    // Always verify against delivered inventory before adding new order demand.
+    const shortages = await buildShortagesForRequest([{ product_spec_id: productSpecId, quantity }]);
+    if (shortages.length > 0) {
+      return res.status(409).json({
+        error: 'Inventory is not sufficient for one or more items',
+        shortages,
+      });
+    }
+
+    const { data: spec, error: specError } = await supabase
+      .from('product_specs')
+      .select('id, product_id, spec, price, products(name)')
+      .eq('id', productSpecId)
+      .maybeSingle();
+    if (specError) throw specError;
+    if (!spec) return res.status(404).json({ error: 'Product spec not found' });
+
+    const { data: existingItem, error: existingItemError } = await supabase
+      .from('order_items')
+      .select('id, ordered_quantity')
+      .eq('order_id', orderId)
+      .eq('product_spec_id', productSpecId)
+      .maybeSingle();
+    if (existingItemError) throw existingItemError;
+
+    if (existingItem) {
+      const nextQty = Math.max(0, toInt(existingItem.ordered_quantity) + quantity);
+      const { error: updateItemError } = await supabase
+        .from('order_items')
+        .update({
+          ordered_quantity: nextQty,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingItem.id);
+      if (updateItemError) throw updateItemError;
+    } else {
+      const { error: insertItemError } = await supabase.from('order_items').insert({
+        order_id: orderId,
+        product_id: spec.product_id,
+        product_spec_id: spec.id,
+        product_name_snapshot: spec.products?.name || 'Unknown',
+        spec_snapshot: spec.spec || 'Unknown',
+        ordered_quantity: quantity,
+        unit_price: Number(spec.price) || 0,
+      });
+      if (insertItemError) throw insertItemError;
+    }
+
+    await recomputeOpenOrderReservations();
+    const serialized = await serializeOrderById(orderId);
+    res.json(serialized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+

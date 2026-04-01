@@ -510,7 +510,13 @@ document.getElementById('purchaseForm').addEventListener('submit', async (e) => 
     alert('Enter a quantity greater than 0.');
     return;
   }
-  const payload = { product_id, product_spec_id, quantity: addQty, purchase_date };
+  const payload = {
+    product_id,
+    product_spec_id,
+    quantity: addQty,
+    purchase_date,
+    status: 'Delivered',
+  };
   if (unitCostRaw != null && String(unitCostRaw).trim() !== '') {
     payload.unit_cost = parseFloat(unitCostRaw);
   }
@@ -813,6 +819,7 @@ function getInStockOptions() {
   const byKey = {};
   (state.inventory || []).forEach((inv) => {
     if (!inv || toNumber(inv.quantity) <= 0) return;
+    // Sales can only use physically delivered stock.
     if (inv.status !== 'Delivered') return;
     const p = productsById[inv.product_id];
     if (!p) return;
