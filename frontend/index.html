@@ -14,7 +14,16 @@
     <div></div>
     <h1>SAVAGE PEPTIDES</h1>
     <div class="header-actions">
-      <button id="openCart" class="icon-btn cart-btn" title="Cart">🛒 <span id="cartCount">0</span></button>
+      <button id="openCart" class="icon-btn cart-btn" title="Cart" aria-label="Open cart">
+        <svg class="cart-box-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <polygon class="box-top" points="12,3 20,7.5 12,12 4,7.5"></polygon>
+          <polygon class="box-left" points="4,7.5 12,12 12,21 4,16.5"></polygon>
+          <polygon class="box-right" points="20,7.5 12,12 12,21 20,16.5"></polygon>
+          <polyline class="box-edge" points="4,7.5 12,12 20,7.5"></polyline>
+          <polyline class="box-edge" points="12,12 12,21"></polyline>
+        </svg>
+        <span id="cartCount">0</span>
+      </button>
     </div>
   </header>
 

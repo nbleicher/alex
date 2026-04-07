@@ -5,6 +5,16 @@ const state = {
   cart: [],
 };
 
+const CART_BOX_ICON = `
+  <svg class="cart-box-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <polygon class="box-top" points="12,3 20,7.5 12,12 4,7.5"></polygon>
+    <polygon class="box-left" points="4,7.5 12,12 12,21 4,16.5"></polygon>
+    <polygon class="box-right" points="20,7.5 12,12 12,21 20,16.5"></polygon>
+    <polyline class="box-edge" points="4,7.5 12,12 20,7.5"></polyline>
+    <polyline class="box-edge" points="12,12 12,21"></polyline>
+  </svg>
+`;
+
 async function api(path, options = {}) {
   const res = await fetch(`${API}${path}`, {
     ...options,
@@ -57,7 +67,11 @@ function renderProducts() {
           <img class="product-image" src="${escapeHtml(spec.image_url || product.image_url || '')}" alt="${escapeHtml(product.name)}" />
           <div class="product-meta">
             <span>${escapeHtml(product.name)} ${escapeHtml(spec.spec)}</span>
-            <button data-add="${product.id}|${spec.id}">🛒</button>
+            <button
+              data-add="${product.id}|${spec.id}"
+              aria-label="Add ${escapeHtml(product.name)} ${escapeHtml(spec.spec)} to cart"
+              title="Add to cart"
+            >${CART_BOX_ICON}</button>
           </div>
         </article>
       `);

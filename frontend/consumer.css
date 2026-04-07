@@ -1,7 +1,7 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #fff;
+  background: #f6f7f9;
   color: #111;
 }
 
@@ -25,10 +25,30 @@ body {
 }
 
 .icon-btn {
-  border: 1px solid #d0d0d0;
-  background: #fff;
-  padding: 0.35rem 0.6rem;
+  border: 1px solid #cfd5df;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f7 100%);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  padding: 0.4rem 0.65rem;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.icon-btn:hover {
+  border-color: #b8c2d2;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12), inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.icon-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), inset 0 1px 2px rgba(16, 24, 40, 0.1);
+}
+
+.cart-btn {
+  font-weight: 600;
 }
 
 .admin-cog-bottom-left {
@@ -50,13 +70,15 @@ body {
 .product-card {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .product-image {
   width: 100%;
-  height: 220px;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
+  border-radius: 8px;
+  overflow: hidden;
   background: #ececec;
 }
 
@@ -67,9 +89,54 @@ body {
 }
 
 .product-meta button {
-  border: 1px solid #bbb;
-  background: #fff;
+  border: 1px solid #cfd5df;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f7 100%);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
   cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.product-meta button:hover {
+  border-color: #b8c2d2;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.12), inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.product-meta button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08), inset 0 1px 2px rgba(16, 24, 40, 0.1);
+}
+
+.cart-box-icon {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+.cart-box-icon .box-top {
+  fill: #eef3fb;
+}
+
+.cart-box-icon .box-left {
+  fill: #cad5e6;
+}
+
+.cart-box-icon .box-right {
+  fill: #aebcd2;
+}
+
+.cart-box-icon .box-edge {
+  stroke: #6f7e96;
+  stroke-width: 1.2;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .modal {
