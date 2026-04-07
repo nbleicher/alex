@@ -5,13 +5,14 @@ const state = {
   cart: [],
 };
 
-const CART_BOX_ICON = `
-  <svg class="cart-box-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-    <polygon class="box-top" points="12,3 20,7.5 12,12 4,7.5"></polygon>
-    <polygon class="box-left" points="4,7.5 12,12 12,21 4,16.5"></polygon>
-    <polygon class="box-right" points="20,7.5 12,12 12,21 20,16.5"></polygon>
-    <polyline class="box-edge" points="4,7.5 12,12 20,7.5"></polyline>
-    <polyline class="box-edge" points="12,12 12,21"></polyline>
+const CART_ICON = `
+  <svg class="cart-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path class="cart-basket" d="M8 8h11l-1.4 6.1c-.16.7-.78 1.2-1.5 1.2H10.2c-.72 0-1.34-.5-1.5-1.2L7.2 6.4H4.6a1 1 0 1 1 0-2H8a1 1 0 0 1 .98.8L9.4 7h9.9a1 1 0 0 1 .98 1.23l-.04.17Z"></path>
+    <path class="cart-handle" d="M9.2 6h9.1a1 1 0 0 1 0 2H9.8"></path>
+    <circle class="cart-wheel wheel-left" cx="11" cy="18.5" r="1.8"></circle>
+    <circle class="cart-wheel wheel-right" cx="16.8" cy="18.5" r="1.8"></circle>
+    <circle class="cart-wheel-core" cx="11" cy="18.5" r="0.7"></circle>
+    <circle class="cart-wheel-core" cx="16.8" cy="18.5" r="0.7"></circle>
   </svg>
 `;
 
@@ -71,7 +72,7 @@ function renderProducts() {
               data-add="${product.id}|${spec.id}"
               aria-label="Add ${escapeHtml(product.name)} ${escapeHtml(spec.spec)} to cart"
               title="Add to cart"
-            >${CART_BOX_ICON}</button>
+            >${CART_ICON}</button>
           </div>
         </article>
       `);
@@ -94,16 +95,16 @@ function renderCart() {
   );
   const wrap = document.getElementById('cartItems');
   if (state.cart.length === 0) {
-    wrap.innerHTML = '<p>Your cart is empty.</p>';
+    wrap.innerHTML = '<p class="cart-empty">Your cart is empty.</p>';
     return;
   }
   wrap.innerHTML = state.cart
     .map(
       (item) => `
       <div class="cart-row">
-        <span>${escapeHtml(item.label)}</span>
-        <input type="number" min="1" value="${item.quantity}" data-qty="${item.key}" />
-        <button data-remove="${item.key}">Remove</button>
+        <span class="cart-item-label">${escapeHtml(item.label)}</span>
+        <input class="cart-qty-input" type="number" min="1" value="${item.quantity}" data-qty="${item.key}" />
+        <button class="cart-remove-btn" data-remove="${item.key}">Remove</button>
       </div>
     `,
     )
