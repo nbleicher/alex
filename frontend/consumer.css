@@ -84,8 +84,17 @@ body {
 
 .product-meta {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  position: relative;
+  min-height: 2rem;
+}
+
+.product-meta span {
+  text-align: center;
+  line-height: 1.35;
+  width: 100%;
+  padding: 0 2.4rem;
 }
 
 .product-meta button {
@@ -100,6 +109,8 @@ body {
   height: 2rem;
   padding: 0;
   cursor: pointer;
+  position: absolute;
+  right: 0;
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 
