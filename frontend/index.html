@@ -6,7 +6,8 @@
   <meta name="api-base" content="/api" />
   <title>Savage Peptides Admin</title>
   <link rel="icon" href="favicon.png" type="image/png" />
-  <link rel="stylesheet" href="styles.css" />
+  <!-- ?v= forces fresh copies: the old Cloudflare proxy let browsers cache .js/.css for 4 hours -->
+  <link rel="stylesheet" href="styles.css?v=2" />
   <script>window.API_BASE_URL = document.querySelector('meta[name="api-base"]')?.getAttribute('content') || '';</script>
 </head>
 <body>
@@ -316,6 +317,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="app.js?v=2"></script>
 </body>
 </html>
