@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, queryOne } from '../db.js';
 
+// Admin side of the orders board only; this site has no shop checkout.
 export const ordersRouter = Router();
 
 const OPEN_STATUSES = ['processing', 'payment_received'];
@@ -211,105 +212,10 @@ async function serializeOrderById(orderId) {
   };
 }
 
-function newOrderNumber() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `SP-${y}${m}${d}-${suffix}`;
-}
-
 const SPEC_WITH_NAME = `
   select ps.id, ps.product_id, ps.spec, ps.price, p.name as product_name
   from product_specs ps
   left join products p on p.id = ps.product_id`;
-
-ordersRouter.post('/', async (req, res) => {
-  try {
-    const { first_name, last_name, phone, referral, items } = req.body || {};
-    if (!first_name || !last_name || !phone || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        error: 'first_name, last_name, phone, and at least one item are required',
-      });
-    }
-
-    const normalizedItems = [];
-    for (const item of items) {
-      const qty = toInt(item.quantity);
-      if (!item.product_spec_id || qty <= 0) continue;
-      normalizedItems.push({
-        product_spec_id: item.product_spec_id,
-        quantity: qty,
-      });
-    }
-    if (normalizedItems.length === 0) {
-      return res.status(400).json({ error: 'No valid items in cart' });
-    }
-
-    const shortages = await buildShortagesForRequest(normalizedItems);
-    if (shortages.length > 0) {
-      return res.status(409).json({
-        error: 'Inventory is not sufficient for one or more items',
-        shortages,
-      });
-    }
-
-    const order = await queryOne(
-      `insert into orders (order_number, first_name, last_name, phone, referral, status)
-       values ($1, $2, $3, $4, $5, 'processing') returning *`,
-      [
-        newOrderNumber(),
-        String(first_name).trim(),
-        String(last_name).trim(),
-        String(phone).trim(),
-        referral ? String(referral).trim() : null,
-      ],
-    );
-
-    const specIds = [...new Set(normalizedItems.map((it) => it.product_spec_id))];
-    const specs = await query(`${SPEC_WITH_NAME} where ps.id = any($1::uuid[])`, [specIds]);
-    const specById = specs.reduce((acc, s) => {
-      acc[s.id] = s;
-      return acc;
-    }, {});
-
-    const insertItems = normalizedItems.map((it) => {
-      const spec = specById[it.product_spec_id];
-      if (!spec) {
-        throw new Error(`Spec ${it.product_spec_id} not found`);
-      }
-      return {
-        product_id: spec.product_id,
-        product_spec_id: spec.id,
-        product_name_snapshot: spec.product_name || 'Unknown',
-        spec_snapshot: spec.spec || 'Unknown',
-        ordered_quantity: it.quantity,
-        unit_price: Number(spec.price) || 0,
-      };
-    });
-
-    await query(
-      `insert into order_items
-         (order_id, product_id, product_spec_id, product_name_snapshot, spec_snapshot, ordered_quantity, unit_price)
-       select $1::uuid, * from unnest($2::uuid[], $3::uuid[], $4::text[], $5::text[], $6::int[], $7::numeric[])`,
-      [
-        order.id,
-        insertItems.map((it) => it.product_id),
-        insertItems.map((it) => it.product_spec_id),
-        insertItems.map((it) => it.product_name_snapshot),
-        insertItems.map((it) => it.spec_snapshot),
-        insertItems.map((it) => it.ordered_quantity),
-        insertItems.map((it) => it.unit_price),
-      ],
-    );
-
-    await recomputeOpenOrderReservations();
-    return res.status(201).json(await serializeOrderById(order.id));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 ordersRouter.get('/', async (_req, res) => {
   try {

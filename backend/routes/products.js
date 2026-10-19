@@ -1,37 +1,12 @@
 import { Router } from 'express';
 import { query, queryOne } from '../db.js';
-import { requireAdmin } from '../lib/admin-session.js';
 
 export const productsRouter = Router();
-
-productsRouter.use((req, res, next) => {
-  if (req.method === 'GET' && req.path === '/public') return next();
-  return requireAdmin(req, res, next);
-});
 
 async function withSpecs(product) {
   const specs = await query('select * from product_specs where product_id = $1 order by spec', [product.id]);
   return { ...product, specs };
 }
-
-productsRouter.get('/public', async (_req, res) => {
-  try {
-    const specs = await query('select * from product_specs where available = true order by spec');
-    const productIds = [...new Set(specs.map((s) => s.product_id))];
-    if (productIds.length === 0) return res.json([]);
-
-    const products = await query('select * from products where id = any($1::uuid[]) order by name', [productIds]);
-
-    const byProduct = {};
-    for (const p of products) byProduct[p.id] = { ...p, specs: [] };
-    for (const s of specs) {
-      if (byProduct[s.product_id]) byProduct[s.product_id].specs.push(s);
-    }
-    res.json(Object.values(byProduct));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // GET /products – list all with specs
 productsRouter.get('/', async (req, res) => {

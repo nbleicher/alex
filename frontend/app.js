@@ -1477,22 +1477,96 @@ if (viewOverrideHistoryBtn && overridesHistoryModal && closeOverridesHistoryBtn 
   closeOverridesHistoryBtn.addEventListener('click', closeOverridesHistory);
 }
 
-async function initAdminSession() {
-  async function checkAuth() {
-    try {
-      const me = await api('/admin-auth/me');
-      return !!me?.authenticated;
-    } catch (_) {
-      return false;
-    }
-  }
+// No storefront on this site: login and the first-login password change live here.
+const dashboardView = document.getElementById('dashboardView');
+const loginModal = document.getElementById('loginModal');
+const passwordModal = document.getElementById('passwordModal');
 
-  const isAuthed = await checkAuth();
-  if (!isAuthed) {
-    window.location.href = '/';
+function showLogin() {
+  dashboardView.hidden = true;
+  passwordModal.setAttribute('aria-hidden', 'true');
+  loginModal.setAttribute('aria-hidden', 'false');
+  document.getElementById('adminUsername').focus();
+}
+
+function showPasswordChange(currentPassword = '') {
+  dashboardView.hidden = true;
+  loginModal.setAttribute('aria-hidden', 'true');
+  document.getElementById('adminPasswordForm').reset();
+  document.getElementById('adminCurrentPassword').value = currentPassword;
+  document.getElementById('adminPasswordError').textContent = '';
+  passwordModal.setAttribute('aria-hidden', 'false');
+}
+
+async function showDashboard() {
+  loginModal.setAttribute('aria-hidden', 'true');
+  passwordModal.setAttribute('aria-hidden', 'true');
+  dashboardView.hidden = false;
+  await loadAll();
+}
+
+document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const loginError = document.getElementById('adminLoginError');
+  loginError.textContent = '';
+  const password = document.getElementById('adminPassword').value;
+  try {
+    const result = await api('/admin-auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: document.getElementById('adminUsername').value.trim(),
+        password,
+      }),
+    });
+    if (result?.mustChangePassword) {
+      showPasswordChange(password);
+      return;
+    }
+    await showDashboard();
+  } catch (err) {
+    loginError.textContent = err.message || 'Login failed';
+  }
+});
+
+document.getElementById('adminPasswordForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const passwordError = document.getElementById('adminPasswordError');
+  passwordError.textContent = '';
+  const newPassword = document.getElementById('adminNewPassword').value;
+  if (newPassword !== document.getElementById('adminConfirmPassword').value) {
+    passwordError.textContent = 'New passwords do not match';
     return;
   }
-  await loadAll();
+  try {
+    await api('/admin-auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword: document.getElementById('adminCurrentPassword').value,
+        newPassword,
+      }),
+    });
+    await showDashboard();
+  } catch (err) {
+    passwordError.textContent = err.message || 'Could not change password';
+  }
+});
+
+async function initAdminSession() {
+  let me = {};
+  try {
+    me = (await api('/admin-auth/me')) || {};
+  } catch (_) {
+    // treat as logged out
+  }
+  if (me.mustChangePassword) {
+    showPasswordChange();
+    return;
+  }
+  if (!me.authenticated) {
+    showLogin();
+    return;
+  }
+  await showDashboard();
 }
 
 initAdminTabs();
