@@ -5,7 +5,7 @@
 - **Vercel project** `alex` in team Momentum Media Solutions LLC, Git-connected to `nbleicher/alex`. Pushing `main` deploys production; other branches get preview URLs.
 - **Neon** `alex-db`, installed through the Vercel Marketplace. It sets `DATABASE_URL` (and the other `PG*`/`POSTGRES_*` vars) on the project.
 - **Vercel Blob** store `alex-images` (public). It sets `BLOB_READ_WRITE_TOKEN`.
-- **Env vars set by hand** (sensitive, Production + Preview): `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET`.
+- **Env var set by hand** (sensitive, Production + Preview): `ADMIN_SESSION_SECRET`. Admin usernames and password hashes live in the `admin_users` table; see the README.
 
 `vercel.json` serves `frontend/` as static output and rewrites `/api/*` to the Express function in `api/index.js`. The frontend calls `/api` on the same origin, so no CORS or cross-site cookie settings are needed.
 
@@ -31,4 +31,4 @@ Run `backend/sql/schema.sql` once in the Neon SQL Editor (Vercel → Storage →
 
 - **`/api/*` returns 503 “Database not configured”** – `DATABASE_URL` is missing for that environment. Reconnect `alex-db` to the project.
 - **Image upload fails** – `BLOB_READ_WRITE_TOKEN` is missing. Reconnect the `alex-images` store to the project.
-- **Admin login returns 503** – `ADMIN_USERNAME` / `ADMIN_PASSWORD` are not set for that environment.
+- **Admin login always says invalid** – no row in `admin_users`. Run `npm run set-admin-password -- <username> <password>`.

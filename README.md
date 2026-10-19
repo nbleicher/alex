@@ -12,10 +12,12 @@ Full-stack app on one Vercel project (`alex`, team Momentum Media Solutions LLC)
 
 1. `npm install`
 2. `vercel link --project alex --scope pro-build-momentum` then `vercel env pull .env.local`
-3. Add `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` to `.env.local` (they are sensitive on Vercel, so `env pull` leaves them out).
+3. Add `ADMIN_SESSION_SECRET` to `.env.local` (it is sensitive on Vercel, so `env pull` leaves it out).
 4. `npm run dev` → http://localhost:3000 (static site + `/api`).
 
 Schema: run `backend/sql/schema.sql` once in the Neon SQL Editor. Seed: Manage products → “Seed PDF data”, or `npm run seed`.
+
+Admin login lives in the `admin_users` table. `npm run set-admin-password -- <username> <password>` creates the admin or resets the password. Either way, a new password is required at the next login.
 
 See [DEPLOY.md](DEPLOY.md) for deploys and the Supabase data migration.
 

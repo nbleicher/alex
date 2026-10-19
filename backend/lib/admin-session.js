@@ -24,9 +24,12 @@ function parseCookies(header = '') {
   }, {});
 }
 
-export function createAdminSessionToken() {
+// mustChangePassword sessions may only change the password (see requireAdmin)
+export function createAdminSessionToken({ username, mustChangePassword }) {
   const payload = {
     sub: 'admin',
+    user: username,
+    mustChangePassword: !!mustChangePassword,
     exp: Date.now() + SESSION_TTL_MS,
     nonce: crypto.randomBytes(12).toString('hex'),
   };
@@ -35,17 +38,18 @@ export function createAdminSessionToken() {
   return `${encoded}.${sig}`;
 }
 
+// → session payload, or null when missing/invalid/expired
 export function verifyAdminSessionToken(token) {
-  if (!token || typeof token !== 'string') return false;
+  if (!token || typeof token !== 'string') return null;
   const [payloadEncoded, providedSig] = token.split('.');
-  if (!payloadEncoded || !providedSig || !getSecret()) return false;
+  if (!payloadEncoded || !providedSig || !getSecret()) return null;
   const expectedSig = signValue(payloadEncoded);
-  if (providedSig.length !== expectedSig.length) return false;
+  if (providedSig.length !== expectedSig.length) return null;
   const isSigValid = crypto.timingSafeEqual(Buffer.from(providedSig), Buffer.from(expectedSig));
-  if (!isSigValid) return false;
+  if (!isSigValid) return null;
   const parsed = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf8'));
-  if (!parsed || parsed.sub !== 'admin' || !parsed.exp) return false;
-  return Date.now() <= Number(parsed.exp);
+  if (!parsed || parsed.sub !== 'admin' || !parsed.user || !parsed.exp) return null;
+  return Date.now() <= Number(parsed.exp) ? parsed : null;
 }
 
 export function setAdminSessionCookie(res, token) {
@@ -80,14 +84,18 @@ export function clearAdminSessionCookie(res) {
   res.setHeader('Set-Cookie', attrs.join('; '));
 }
 
-export function isAdminRequest(req) {
+export function getAdminSession(req) {
   const cookies = parseCookies(req.headers.cookie || '');
   return verifyAdminSessionToken(cookies[COOKIE_NAME]);
 }
 
 export function requireAdmin(req, res, next) {
-  if (!isAdminRequest(req)) {
+  const session = getAdminSession(req);
+  if (!session) {
     return res.status(401).json({ error: 'Admin login required' });
+  }
+  if (session.mustChangePassword) {
+    return res.status(403).json({ error: 'Set a new password first', mustChangePassword: true });
   }
   next();
 }

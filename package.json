@@ -1,7 +1,7 @@
 {
   "name": "alex",
   "private": true,
-  "description": "Spend & Profit Tracker – Vercel functions + Neon",
+  "description": "Spend & Profit Tracker \u2013 Vercel functions + Neon",
   "type": "module",
   "engines": {
     "node": "24.x"
@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vercel dev",
     "seed": "node --env-file=.env.local backend/scripts/seed-products.js",
-    "migrate:supabase": "node --env-file=.env.local backend/scripts/migrate-from-supabase.js"
+    "migrate:supabase": "node --env-file=.env.local backend/scripts/migrate-from-supabase.js",
+    "set-admin-password": "node --env-file=.env.local backend/scripts/set-admin-password.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

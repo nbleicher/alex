@@ -100,3 +100,12 @@ create index if not exists idx_order_items_order_id on order_items(order_id);
 create index if not exists idx_order_items_spec on order_items(product_spec_id);
 create index if not exists idx_order_item_reservations_item_id on order_item_reservations(order_item_id);
 create index if not exists idx_order_item_reservations_inventory_id on order_item_reservations(inventory_id);
+
+-- Admin logins (set or reset with: npm run set-admin-password -- <username> <password>)
+create table if not exists admin_users (
+  username text primary key,
+  password_hash text not null,
+  must_change_password boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);

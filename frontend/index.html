@@ -87,6 +87,22 @@
     </div>
   </div>
 
+  <div class="modal" id="adminPasswordModal" aria-hidden="true">
+    <div class="card">
+      <div class="card-header">
+        <h2>Set a new password</h2>
+        <button class="close-btn" id="closeAdminPassword" aria-label="Close">×</button>
+      </div>
+      <form id="adminPasswordForm" class="checkout-form">
+        <label>Current password <input id="adminCurrentPassword" type="password" required /></label>
+        <label>New password <input id="adminNewPassword" type="password" minlength="8" required /></label>
+        <label>Confirm new password <input id="adminConfirmPassword" type="password" minlength="8" required /></label>
+        <button type="submit">Save password</button>
+      </form>
+      <div id="adminPasswordError" class="error"></div>
+    </div>
+  </div>
+
   <script type="module" src="consumer.js"></script>
 </body>
 </html>
