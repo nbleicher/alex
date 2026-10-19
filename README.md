@@ -2,7 +2,7 @@
 
 Full-stack app on one Vercel project (`alex`, team Momentum Media Solutions LLC):
 
-- **Frontend** – static files in `frontend/`, served at the site root (alex.jawnix.com).
+- **Frontend** – admin-only static files in `frontend/`, served at the site root (alex.jawnix.com). There is no storefront.
 - **API** – Express app in `api/index.js` + `backend/`, one Vercel function under `/api`.
 - **DB** – Neon Postgres (`alex-db`, via the Vercel Marketplace). Images – Vercel Blob (`alex-images`).
 
@@ -26,7 +26,6 @@ See [DEPLOY.md](DEPLOY.md) for deploys and the Supabase data migration.
 All routes are under `/api`.
 
 - `GET/POST /products` – list, create
-- `GET /products/public` – available specs for the shop (no login)
 - `GET/PATCH/DELETE /products/:id` – get, update, delete product
 - `GET/POST /products/:id/specs` – list specs, add spec
 - `PATCH/DELETE /specs/:id` – update, delete spec
@@ -35,5 +34,5 @@ All routes are under `/api`.
 - `GET/POST /sales` – list, add sale
 - `PATCH/DELETE /sales/:id` – edit, remove sale
 - `GET /summary` – totalSpend, totalRevenue, netProfit
-- `POST /orders` – shop checkout (no login); `GET /orders`, `PATCH /orders/:id/status`, `PATCH /orders/:id/items`, `DELETE /orders/:id`
+- `GET /orders`, `PATCH /orders/:id/status`, `PATCH /orders/:id/items`, `DELETE /orders/:id` – orders board
 - `POST /seed` – seed products/specs from PDF data

@@ -573,6 +573,11 @@ body {
   margin-top: 1rem;
 }
 
+.form-error {
+  color: var(--danger);
+  margin: 0.75rem 0 0;
+}
+
 .product-list {
   list-style: none;
   padding: 0;

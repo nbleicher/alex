@@ -27,18 +27,15 @@ api.use((req, res, next) => {
   next();
 });
 
-api.use('/products', productsRouter);
 api.use('/admin-auth', adminAuthRouter);
+api.use('/products', requireAdmin, productsRouter);
 api.use('/products', requireAdmin, specsRouter);
 api.use('/specs', requireAdmin, specsRouter);
 api.use('/inventory', requireAdmin, inventoryRouter);
 api.use('/sales', requireAdmin, salesRouter);
 api.use('/summary', requireAdmin, summaryRouter);
 api.use('/seed', requireAdmin, seedRouter);
-api.use('/orders', (req, res, next) => {
-  if (req.method === 'POST') return next();
-  return requireAdmin(req, res, next);
-}, ordersRouter);
+api.use('/orders', requireAdmin, ordersRouter);
 
 app.use('/api', api);
 
