@@ -1,34 +1,19 @@
 import { Router } from 'express';
-import { supabase } from '../db.js';
+import { query, queryOne } from '../db.js';
 
 export const salesRouter = Router();
+
+const SALE_WITH_NAMES = `
+  select s.id, s.product_id, s.product_spec_id, s.quantity_sold, s.sell_price_per_sub, s.revenue,
+         s.created_at, s.client_name, p.name as product_name, ps.spec, ps.cat_no
+  from sales s
+  left join products p on p.id = s.product_id
+  left join product_specs ps on ps.id = s.product_spec_id`;
 
 // GET /sales
 salesRouter.get('/', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('sales')
-      .select(`
-        id,
-        product_id,
-        product_spec_id,
-        quantity_sold,
-        sell_price_per_sub,
-        revenue,
-        created_at,
-        client_name,
-        products ( name ),
-        product_specs ( spec, cat_no )
-      `)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    const list = (data || []).map((r) => ({
-      ...r,
-      product_name: r.products?.name,
-      spec: r.product_specs?.spec,
-      cat_no: r.product_specs?.cat_no,
-    }));
-    res.json(list);
+    res.json(await query(`${SALE_WITH_NAMES} order by s.created_at desc`));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -46,19 +31,11 @@ salesRouter.post('/', async (req, res) => {
     const qty = Math.max(0, parseInt(quantity_sold, 10) || 0);
     const price = Number(sell_price_per_sub) || 0;
     const revenue = qty * price;
-    const { data, error } = await supabase
-      .from('sales')
-      .insert({
-        product_id,
-        product_spec_id,
-        quantity_sold: qty,
-        sell_price_per_sub: price,
-        revenue,
-        client_name: client_name || null,
-      })
-      .select()
-      .single();
-    if (error) throw error;
+    const data = await queryOne(
+      `insert into sales (product_id, product_spec_id, quantity_sold, sell_price_per_sub, revenue, client_name)
+       values ($1, $2, $3, $4, $5, $6) returning *`,
+      [product_id, product_spec_id, qty, price, revenue, client_name || null],
+    );
     res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -74,12 +51,9 @@ salesRouter.patch('/:id', async (req, res) => {
     }
 
     // Fetch existing sale to base calculations on
-    const { data: existing, error: fetchError } = await supabase
-      .from('sales')
-      .select('quantity_sold, sell_price_per_sub')
-      .eq('id', req.params.id)
-      .single();
-    if (fetchError) throw fetchError;
+    const existing = await queryOne('select quantity_sold, sell_price_per_sub, client_name from sales where id = $1', [
+      req.params.id,
+    ]);
     if (!existing) {
       return res.status(404).json({ error: 'Sale not found' });
     }
@@ -89,37 +63,13 @@ salesRouter.patch('/:id', async (req, res) => {
     const nextQty = quantity_sold != null ? Math.max(0, parseInt(quantity_sold, 10) || 0) : currentQty;
     const nextPrice = sell_price_per_sub != null ? Number(sell_price_per_sub) || 0 : currentPrice;
     const revenue = nextQty * nextPrice;
+    const nextClient = client_name !== undefined ? client_name || null : existing.client_name;
 
-    const patch = {
-      quantity_sold: nextQty,
-      sell_price_per_sub: nextPrice,
-      revenue,
-    };
-    if (client_name !== undefined) {
-      patch.client_name = client_name || null;
-    }
-
-    const { data, error } = await supabase
-      .from('sales')
-      .update(patch)
-      .eq('id', req.params.id)
-      .select(
-        `
-        id,
-        product_id,
-        product_spec_id,
-        quantity_sold,
-        sell_price_per_sub,
-        revenue,
-        created_at,
-        client_name,
-        products ( name ),
-        product_specs ( spec, cat_no )
-        `,
-      )
-      .single();
-    if (error) throw error;
-    res.json(data);
+    await query(
+      'update sales set quantity_sold = $2, sell_price_per_sub = $3, revenue = $4, client_name = $5 where id = $1',
+      [req.params.id, nextQty, nextPrice, revenue, nextClient],
+    );
+    res.json(await queryOne(`${SALE_WITH_NAMES} where s.id = $1`, [req.params.id]));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -128,8 +78,7 @@ salesRouter.patch('/:id', async (req, res) => {
 // DELETE /sales/:id
 salesRouter.delete('/:id', async (req, res) => {
   try {
-    const { error } = await supabase.from('sales').delete().eq('id', req.params.id);
-    if (error) throw error;
+    await query('delete from sales where id = $1', [req.params.id]);
     res.status(204).send();
   } catch (err) {
     res.status(500).json({ error: err.message });
