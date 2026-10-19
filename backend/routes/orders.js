@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../db.js';
+import { query, queryOne } from '../db.js';
 
 export const ordersRouter = Router();
 
@@ -19,20 +19,13 @@ function toInt(v) {
 }
 
 async function getOrderItemsAndReservations(orderId) {
-  const { data: itemRows, error: itemError } = await supabase
-    .from('order_items')
-    .select('id, ordered_quantity')
-    .eq('order_id', orderId);
-  if (itemError) throw itemError;
-  const itemIds = (itemRows || []).map((i) => i.id);
-  if (itemIds.length === 0) return { itemRows: [], reservations: [] };
-
-  const { data: reservations, error: reservationError } = await supabase
-    .from('order_item_reservations')
-    .select('id, order_item_id, inventory_id, quantity')
-    .in('order_item_id', itemIds);
-  if (reservationError) throw reservationError;
-  return { itemRows: itemRows || [], reservations: reservations || [] };
+  const itemRows = await query('select id, ordered_quantity from order_items where order_id = $1', [orderId]);
+  if (itemRows.length === 0) return { itemRows: [], reservations: [] };
+  const reservations = await query(
+    'select id, order_item_id, inventory_id, quantity from order_item_reservations where order_item_id = any($1::uuid[])',
+    [itemRows.map((i) => i.id)],
+  );
+  return { itemRows, reservations };
 }
 
 async function adjustInventoryFromReservations(reservations, mode = 'deduct') {
@@ -43,23 +36,12 @@ async function adjustInventoryFromReservations(reservations, mode = 'deduct') {
   const inventoryIds = Object.keys(byInventory);
   if (inventoryIds.length === 0) return;
 
-  const { data: inventoryRows, error: invError } = await supabase
-    .from('inventory')
-    .select('id, quantity')
-    .in('id', inventoryIds);
-  if (invError) throw invError;
-
-  for (const row of inventoryRows || []) {
+  const inventoryRows = await query('select id, quantity from inventory where id = any($1::uuid[])', [inventoryIds]);
+  for (const row of inventoryRows) {
     const delta = byInventory[row.id] || 0;
     const nextQty =
-      mode === 'add'
-        ? Math.max(0, toInt(row.quantity) + delta)
-        : Math.max(0, toInt(row.quantity) - delta);
-    const { error: updateInvError } = await supabase
-      .from('inventory')
-      .update({ quantity: nextQty, updated_at: new Date().toISOString() })
-      .eq('id', row.id);
-    if (updateInvError) throw updateInvError;
+      mode === 'add' ? Math.max(0, toInt(row.quantity) + delta) : Math.max(0, toInt(row.quantity) - delta);
+    await query('update inventory set quantity = $2, updated_at = now() where id = $1', [row.id, nextQty]);
   }
 }
 
@@ -67,36 +49,36 @@ async function buildShortagesForRequest(items) {
   const specIds = [...new Set(items.map((it) => it.product_spec_id))];
   if (specIds.length === 0) return [];
 
-  const { data: specs, error: specsError } = await supabase
-    .from('product_specs')
-    .select('id, product_id, spec, products(name)')
-    .in('id', specIds);
-  if (specsError) throw specsError;
+  const specs = await query(
+    `select ps.id, ps.product_id, ps.spec, p.name as product_name
+     from product_specs ps
+     left join products p on p.id = ps.product_id
+     where ps.id = any($1::uuid[])`,
+    [specIds],
+  );
 
-  const { data: inventoryRows, error: invError } = await supabase
-    .from('inventory')
-    .select('product_spec_id, quantity')
-    .in('product_spec_id', specIds)
-    .eq('status', 'Delivered')
-    .gt('quantity', 0);
-  if (invError) throw invError;
+  const inventoryRows = await query(
+    `select product_spec_id, quantity from inventory
+     where product_spec_id = any($1::uuid[]) and status = 'Delivered' and quantity > 0`,
+    [specIds],
+  );
 
-  const { data: openOrderItems, error: openItemsError } = await supabase
-    .from('order_items')
-    .select('product_spec_id, ordered_quantity, orders(status)')
-    .in('product_spec_id', specIds);
-  if (openItemsError) throw openItemsError;
+  const openOrderItems = await query(
+    `select oi.product_spec_id, oi.ordered_quantity
+     from order_items oi
+     join orders o on o.id = oi.order_id
+     where oi.product_spec_id = any($1::uuid[]) and o.status = any($2::text[])`,
+    [specIds, OPEN_STATUSES],
+  );
 
   const inventoryBySpec = {};
-  for (const row of inventoryRows || []) {
+  for (const row of inventoryRows) {
     const key = row.product_spec_id;
     inventoryBySpec[key] = (inventoryBySpec[key] || 0) + Math.max(0, toInt(row.quantity));
   }
 
   const existingDemandBySpec = {};
-  for (const row of openOrderItems || []) {
-    const status = row.orders?.status;
-    if (!OPEN_STATUSES.includes(status)) continue;
+  for (const row of openOrderItems) {
     const key = row.product_spec_id;
     existingDemandBySpec[key] = (existingDemandBySpec[key] || 0) + Math.max(0, toInt(row.ordered_quantity));
   }
@@ -106,7 +88,7 @@ async function buildShortagesForRequest(items) {
     requestedBySpec[row.product_spec_id] = (requestedBySpec[row.product_spec_id] || 0) + row.quantity;
   }
 
-  const specById = (specs || []).reduce((acc, s) => {
+  const specById = specs.reduce((acc, s) => {
     acc[s.id] = s;
     return acc;
   }, {});
@@ -120,7 +102,7 @@ async function buildShortagesForRequest(items) {
     const missing = Math.max(0, requested - remainingForNewOrder);
     if (missing > 0) {
       const spec = specById[specId];
-      const productName = spec?.products?.name || 'Unknown';
+      const productName = spec?.product_name || 'Unknown';
       const specName = spec?.spec || 'Unknown';
       shortages.push({
         product_spec_id: specId,
@@ -135,41 +117,29 @@ async function buildShortagesForRequest(items) {
 }
 
 export async function recomputeOpenOrderReservations() {
-  const { data: inventoryRows, error: invError } = await supabase
-    .from('inventory')
-    .select('id, product_spec_id, quantity, purchase_date, created_at')
-    .eq('status', 'Delivered')
-    .gt('quantity', 0)
-    .order('purchase_date', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true });
-  if (invError) throw invError;
+  const inventoryRows = await query(`
+    select id, product_spec_id, quantity
+    from inventory
+    where status = 'Delivered' and quantity > 0
+    order by purchase_date asc nulls last, created_at asc`);
 
-  const { data: openItems, error: openItemsError } = await supabase
-    .from('order_items')
-    .select('id, order_id, product_spec_id, ordered_quantity, orders(status, created_at)')
-    .order('created_at', { ascending: true });
-  if (openItemsError) throw openItemsError;
-
-  const eligibleItems = (openItems || [])
-    .filter((it) => OPEN_STATUSES.includes(it.orders?.status))
-    .sort((a, b) => {
-      const aCreated = new Date(a.orders?.created_at || 0).getTime();
-      const bCreated = new Date(b.orders?.created_at || 0).getTime();
-      if (aCreated !== bCreated) return aCreated - bCreated;
-      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
-    });
+  // open items, oldest order first, then oldest item
+  const eligibleItems = await query(
+    `select oi.id, oi.product_spec_id, oi.ordered_quantity
+     from order_items oi
+     join orders o on o.id = oi.order_id
+     where o.status = any($1::text[])
+     order by o.created_at asc, oi.created_at asc`,
+    [OPEN_STATUSES],
+  );
 
   const openItemIds = eligibleItems.map((it) => it.id);
   if (openItemIds.length > 0) {
-    const { error: deleteError } = await supabase
-      .from('order_item_reservations')
-      .delete()
-      .in('order_item_id', openItemIds);
-    if (deleteError) throw deleteError;
+    await query('delete from order_item_reservations where order_item_id = any($1::uuid[])', [openItemIds]);
   }
 
   const inventoryBySpec = {};
-  for (const row of inventoryRows || []) {
+  for (const row of inventoryRows) {
     const specId = row.product_spec_id;
     if (!inventoryBySpec[specId]) inventoryBySpec[specId] = [];
     inventoryBySpec[specId].push({
@@ -200,45 +170,44 @@ export async function recomputeOpenOrderReservations() {
   }
 
   if (reservations.length > 0) {
-    const { error: insertError } = await supabase
-      .from('order_item_reservations')
-      .insert(reservations);
-    if (insertError) throw insertError;
+    await query(
+      `insert into order_item_reservations (order_item_id, inventory_id, quantity)
+       select * from unnest($1::uuid[], $2::uuid[], $3::int[])`,
+      [
+        reservations.map((r) => r.order_item_id),
+        reservations.map((r) => r.inventory_id),
+        reservations.map((r) => r.quantity),
+      ],
+    );
   }
 
-  for (const item of eligibleItems) {
-    const { error: updateError } = await supabase
-      .from('order_items')
-      .update({ reserved_quantity: reservedByItem[item.id] || 0 })
-      .eq('id', item.id);
-    if (updateError) throw updateError;
+  if (eligibleItems.length > 0) {
+    await query(
+      `update order_items oi set reserved_quantity = v.reserved
+       from unnest($1::uuid[], $2::int[]) as v(id, reserved)
+       where oi.id = v.id`,
+      [openItemIds, openItemIds.map((itemId) => reservedByItem[itemId] || 0)],
+    );
   }
 }
 
 async function serializeOrderById(orderId) {
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', orderId)
-    .maybeSingle();
-  if (orderError) throw orderError;
+  const order = await queryOne('select * from orders where id = $1', [orderId]);
   if (!order) return null;
 
-  const { data: items, error: itemsError } = await supabase
-    .from('order_items')
-    .select('id, order_id, product_id, product_spec_id, product_name_snapshot, spec_snapshot, ordered_quantity, reserved_quantity, unit_price')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: true });
-  if (itemsError) throw itemsError;
-
-  const normalizedItems = (items || []).map((it) => ({
-    ...it,
-    missing_quantity: Math.max(0, toInt(it.ordered_quantity) - toInt(it.reserved_quantity)),
-  }));
+  const items = await query(
+    `select id, order_id, product_id, product_spec_id, product_name_snapshot, spec_snapshot,
+            ordered_quantity, reserved_quantity, unit_price
+     from order_items where order_id = $1 order by created_at asc`,
+    [orderId],
+  );
 
   return {
     ...order,
-    items: normalizedItems,
+    items: items.map((it) => ({
+      ...it,
+      missing_quantity: Math.max(0, toInt(it.ordered_quantity) - toInt(it.reserved_quantity)),
+    })),
   };
 }
 
@@ -250,6 +219,11 @@ function newOrderNumber() {
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `SP-${y}${m}${d}-${suffix}`;
 }
+
+const SPEC_WITH_NAME = `
+  select ps.id, ps.product_id, ps.spec, ps.price, p.name as product_name
+  from product_specs ps
+  left join products p on p.id = ps.product_id`;
 
 ordersRouter.post('/', async (req, res) => {
   try {
@@ -281,28 +255,21 @@ ordersRouter.post('/', async (req, res) => {
       });
     }
 
-    const orderNumber = newOrderNumber();
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        order_number: orderNumber,
-        first_name: String(first_name).trim(),
-        last_name: String(last_name).trim(),
-        phone: String(phone).trim(),
-        referral: referral ? String(referral).trim() : null,
-        status: 'processing',
-      })
-      .select('*')
-      .single();
-    if (orderError) throw orderError;
+    const order = await queryOne(
+      `insert into orders (order_number, first_name, last_name, phone, referral, status)
+       values ($1, $2, $3, $4, $5, 'processing') returning *`,
+      [
+        newOrderNumber(),
+        String(first_name).trim(),
+        String(last_name).trim(),
+        String(phone).trim(),
+        referral ? String(referral).trim() : null,
+      ],
+    );
 
     const specIds = [...new Set(normalizedItems.map((it) => it.product_spec_id))];
-    const { data: specs, error: specsError } = await supabase
-      .from('product_specs')
-      .select('id, product_id, spec, price, products(name)')
-      .in('id', specIds);
-    if (specsError) throw specsError;
-    const specById = (specs || []).reduce((acc, s) => {
+    const specs = await query(`${SPEC_WITH_NAME} where ps.id = any($1::uuid[])`, [specIds]);
+    const specById = specs.reduce((acc, s) => {
       acc[s.id] = s;
       return acc;
     }, {});
@@ -313,22 +280,32 @@ ordersRouter.post('/', async (req, res) => {
         throw new Error(`Spec ${it.product_spec_id} not found`);
       }
       return {
-        order_id: order.id,
         product_id: spec.product_id,
         product_spec_id: spec.id,
-        product_name_snapshot: spec.products?.name || 'Unknown',
+        product_name_snapshot: spec.product_name || 'Unknown',
         spec_snapshot: spec.spec || 'Unknown',
         ordered_quantity: it.quantity,
         unit_price: Number(spec.price) || 0,
       };
     });
 
-    const { error: insertItemsError } = await supabase.from('order_items').insert(insertItems);
-    if (insertItemsError) throw insertItemsError;
+    await query(
+      `insert into order_items
+         (order_id, product_id, product_spec_id, product_name_snapshot, spec_snapshot, ordered_quantity, unit_price)
+       select $1::uuid, * from unnest($2::uuid[], $3::uuid[], $4::text[], $5::text[], $6::int[], $7::numeric[])`,
+      [
+        order.id,
+        insertItems.map((it) => it.product_id),
+        insertItems.map((it) => it.product_spec_id),
+        insertItems.map((it) => it.product_name_snapshot),
+        insertItems.map((it) => it.spec_snapshot),
+        insertItems.map((it) => it.ordered_quantity),
+        insertItems.map((it) => it.unit_price),
+      ],
+    );
 
     await recomputeOpenOrderReservations();
-    const withItems = await serializeOrderById(order.id);
-    return res.status(201).json(withItems);
+    return res.status(201).json(await serializeOrderById(order.id));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -336,24 +313,17 @@ ordersRouter.post('/', async (req, res) => {
 
 ordersRouter.get('/', async (_req, res) => {
   try {
-    const { data: orders, error: orderError } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: true });
-    if (orderError) throw orderError;
+    const orders = await query('select * from orders order by created_at asc');
+    if (orders.length === 0) return res.json([]);
 
-    const orderIds = (orders || []).map((o) => o.id);
-    if (orderIds.length === 0) return res.json([]);
-
-    const { data: items, error: itemsError } = await supabase
-      .from('order_items')
-      .select('id, order_id, product_name_snapshot, spec_snapshot, ordered_quantity, reserved_quantity, unit_price')
-      .in('order_id', orderIds)
-      .order('created_at', { ascending: true });
-    if (itemsError) throw itemsError;
+    const items = await query(
+      `select id, order_id, product_name_snapshot, spec_snapshot, ordered_quantity, reserved_quantity, unit_price
+       from order_items where order_id = any($1::uuid[]) order by created_at asc`,
+      [orders.map((o) => o.id)],
+    );
 
     const itemsByOrder = {};
-    for (const item of items || []) {
+    for (const item of items) {
       if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
       itemsByOrder[item.order_id].push({
         ...item,
@@ -362,7 +332,7 @@ ordersRouter.get('/', async (_req, res) => {
     }
 
     res.json(
-      (orders || []).map((o) => ({
+      orders.map((o) => ({
         ...o,
         items: itemsByOrder[o.id] || [],
       })),
@@ -378,12 +348,7 @@ ordersRouter.patch('/:id/status', async (req, res) => {
     const nextStatus = String(req.body?.status || '').trim();
     if (!nextStatus) return res.status(400).json({ error: 'status is required' });
 
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-    if (orderError) throw orderError;
+    const order = await queryOne('select * from orders where id = $1', [id]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const expectedNext = NEXT_STATUS[order.status];
@@ -401,10 +366,10 @@ ordersRouter.patch('/:id/status', async (req, res) => {
       const { itemRows, reservations } = await getOrderItemsAndReservations(id);
 
       const reservedByItem = {};
-      for (const r of reservations || []) {
+      for (const r of reservations) {
         reservedByItem[r.order_item_id] = (reservedByItem[r.order_item_id] || 0) + toInt(r.quantity);
       }
-      for (const it of itemRows || []) {
+      for (const it of itemRows) {
         if ((reservedByItem[it.id] || 0) < toInt(it.ordered_quantity)) {
           return res.status(409).json({
             error: 'Order cannot be fulfilled because inventory is not fully reserved',
@@ -419,15 +384,10 @@ ordersRouter.patch('/:id/status', async (req, res) => {
       await adjustInventoryFromReservations(reservations, 'add');
     }
 
-    const { error: updateOrderError } = await supabase
-      .from('orders')
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
-      .eq('id', id);
-    if (updateOrderError) throw updateOrderError;
+    await query('update orders set status = $2, updated_at = now() where id = $1', [id, nextStatus]);
 
     await recomputeOpenOrderReservations();
-    const serialized = await serializeOrderById(id);
-    res.json(serialized);
+    res.json(await serializeOrderById(id));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -436,12 +396,7 @@ ordersRouter.patch('/:id/status', async (req, res) => {
 ordersRouter.delete('/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, status')
-      .eq('id', id)
-      .maybeSingle();
-    if (orderError) throw orderError;
+    const order = await queryOne('select id, status from orders where id = $1', [id]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     if (order.status === 'fulfilled') {
@@ -449,8 +404,7 @@ ordersRouter.delete('/:id', async (req, res) => {
       await adjustInventoryFromReservations(reservations, 'add');
     }
 
-    const { error: deleteError } = await supabase.from('orders').delete().eq('id', id);
-    if (deleteError) throw deleteError;
+    await query('delete from orders where id = $1', [id]);
 
     await recomputeOpenOrderReservations();
     res.status(204).send();
@@ -468,12 +422,7 @@ ordersRouter.patch('/:id/items', async (req, res) => {
       return res.status(400).json({ error: 'product_spec_id and quantity (>0) are required' });
     }
 
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, status')
-      .eq('id', orderId)
-      .maybeSingle();
-    if (orderError) throw orderError;
+    const order = await queryOne('select id, status from orders where id = $1', [orderId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
     if (!OPEN_STATUSES.includes(order.status)) {
       return res.status(409).json({
@@ -490,50 +439,37 @@ ordersRouter.patch('/:id/items', async (req, res) => {
       });
     }
 
-    const { data: spec, error: specError } = await supabase
-      .from('product_specs')
-      .select('id, product_id, spec, price, products(name)')
-      .eq('id', productSpecId)
-      .maybeSingle();
-    if (specError) throw specError;
+    const spec = await queryOne(`${SPEC_WITH_NAME} where ps.id = $1`, [productSpecId]);
     if (!spec) return res.status(404).json({ error: 'Product spec not found' });
 
-    const { data: existingItem, error: existingItemError } = await supabase
-      .from('order_items')
-      .select('id, ordered_quantity')
-      .eq('order_id', orderId)
-      .eq('product_spec_id', productSpecId)
-      .maybeSingle();
-    if (existingItemError) throw existingItemError;
+    const existingItem = await queryOne(
+      'select id, ordered_quantity from order_items where order_id = $1 and product_spec_id = $2',
+      [orderId, productSpecId],
+    );
 
     if (existingItem) {
       const nextQty = Math.max(0, toInt(existingItem.ordered_quantity) + quantity);
-      const { error: updateItemError } = await supabase
-        .from('order_items')
-        .update({
-          ordered_quantity: nextQty,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingItem.id);
-      if (updateItemError) throw updateItemError;
+      await query('update order_items set ordered_quantity = $2 where id = $1', [existingItem.id, nextQty]);
     } else {
-      const { error: insertItemError } = await supabase.from('order_items').insert({
-        order_id: orderId,
-        product_id: spec.product_id,
-        product_spec_id: spec.id,
-        product_name_snapshot: spec.products?.name || 'Unknown',
-        spec_snapshot: spec.spec || 'Unknown',
-        ordered_quantity: quantity,
-        unit_price: Number(spec.price) || 0,
-      });
-      if (insertItemError) throw insertItemError;
+      await query(
+        `insert into order_items
+           (order_id, product_id, product_spec_id, product_name_snapshot, spec_snapshot, ordered_quantity, unit_price)
+         values ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          orderId,
+          spec.product_id,
+          spec.id,
+          spec.product_name || 'Unknown',
+          spec.spec || 'Unknown',
+          quantity,
+          Number(spec.price) || 0,
+        ],
+      );
     }
 
     await recomputeOpenOrderReservations();
-    const serialized = await serializeOrderById(orderId);
-    res.json(serialized);
+    res.json(await serializeOrderById(orderId));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-

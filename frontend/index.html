@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="api-base" content="https://api.alex.jawnix.com" />
+  <meta name="api-base" content="/api" />
   <title>Savage Peptides</title>
   <link rel="icon" href="favicon.png" type="image/png" />
   <link rel="stylesheet" href="consumer.css" />
@@ -84,6 +84,22 @@
         <button type="submit">Login</button>
       </form>
       <div id="adminLoginError" class="error"></div>
+    </div>
+  </div>
+
+  <div class="modal" id="adminPasswordModal" aria-hidden="true">
+    <div class="card">
+      <div class="card-header">
+        <h2>Set a new password</h2>
+        <button class="close-btn" id="closeAdminPassword" aria-label="Close">×</button>
+      </div>
+      <form id="adminPasswordForm" class="checkout-form">
+        <label>Current password <input id="adminCurrentPassword" type="password" required /></label>
+        <label>New password <input id="adminNewPassword" type="password" minlength="8" required /></label>
+        <label>Confirm new password <input id="adminConfirmPassword" type="password" minlength="8" required /></label>
+        <button type="submit">Save password</button>
+      </form>
+      <div id="adminPasswordError" class="error"></div>
     </div>
   </div>
 

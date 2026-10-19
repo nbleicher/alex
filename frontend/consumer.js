@@ -173,19 +173,29 @@ function hideAdminLogin() {
   document.getElementById('adminLoginModal').setAttribute('aria-hidden', 'true');
 }
 
+function showAdminPasswordChange(currentPassword = '') {
+  document.getElementById('adminPasswordForm').reset();
+  document.getElementById('adminCurrentPassword').value = currentPassword;
+  document.getElementById('adminPasswordError').textContent = '';
+  openModal('adminPasswordModal');
+}
+
 async function checkAdminAuth() {
   try {
-    const me = await api('/admin-auth/me');
-    return !!me?.authenticated;
+    return (await api('/admin-auth/me')) || {};
   } catch (_) {
-    return false;
+    return {};
   }
 }
 
 document.getElementById('openAdmin').addEventListener('click', async () => {
-  const isAuthed = await checkAdminAuth();
-  if (isAuthed) {
+  const me = await checkAdminAuth();
+  if (me.authenticated) {
     window.location.href = '/admin/';
+    return;
+  }
+  if (me.mustChangePassword) {
+    showAdminPasswordChange();
     return;
   }
   showAdminLogin();
@@ -206,18 +216,48 @@ document.getElementById('adminLoginForm').addEventListener('submit', async (e) =
   e.preventDefault();
   const loginError = document.getElementById('adminLoginError');
   loginError.textContent = '';
+  const password = document.getElementById('adminPassword').value;
   try {
-    await api('/admin-auth/login', {
+    const result = await api('/admin-auth/login', {
       method: 'POST',
       body: JSON.stringify({
         username: document.getElementById('adminUsername').value.trim(),
-        password: document.getElementById('adminPassword').value,
+        password,
       }),
     });
     hideAdminLogin();
+    if (result?.mustChangePassword) {
+      showAdminPasswordChange(password);
+      return;
+    }
     window.location.href = '/admin/';
   } catch (err) {
     loginError.textContent = err?.error || 'Login failed';
+  }
+});
+
+document.getElementById('closeAdminPassword').addEventListener('click', () => closeModal('adminPasswordModal'));
+document.getElementById('adminPasswordForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const passwordError = document.getElementById('adminPasswordError');
+  passwordError.textContent = '';
+  const newPassword = document.getElementById('adminNewPassword').value;
+  if (newPassword !== document.getElementById('adminConfirmPassword').value) {
+    passwordError.textContent = 'New passwords do not match';
+    return;
+  }
+  try {
+    await api('/admin-auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({
+        currentPassword: document.getElementById('adminCurrentPassword').value,
+        newPassword,
+      }),
+    });
+    closeModal('adminPasswordModal');
+    window.location.href = '/admin/';
+  } catch (err) {
+    passwordError.textContent = err?.error || 'Could not change password';
   }
 });
 

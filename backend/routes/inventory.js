@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../db.js';
+import { query, queryOne } from '../db.js';
 import { recomputeOpenOrderReservations } from './orders.js';
 
 export const inventoryRouter = Router();
@@ -12,39 +12,29 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// '' / null clears the status; anything else must be an allowed status
+function parseStatus(status) {
+  if (status == null || String(status).trim() === '') return { value: null };
+  const normalizedStatus = String(status).trim();
+  if (!ALLOWED_STATUSES.has(normalizedStatus)) {
+    return { error: 'status must be one of Delivered, Shipped, Processing, Scammed' };
+  }
+  return { value: normalizedStatus };
+}
+
 // GET /inventory – list all inventory rows with product + spec + price for display
 inventoryRouter.get('/', async (req, res) => {
   try {
-    const { data: rows, error } = await supabase
-      .from('inventory')
-      .select('id, product_id, product_spec_id, quantity, unit_cost, status, purchase_date, created_at');
-    if (error) throw error;
-
-    if (!rows || rows.length === 0) {
-      return res.json([]);
-    }
-
-    const productIds = [...new Set(rows.map((r) => r.product_id))];
-    const specIds = [...new Set(rows.map((r) => r.product_spec_id))];
-
-    const { data: products } = await supabase
-      .from('products')
-      .select('id, name')
-      .in('id', productIds);
-    const { data: specs } = await supabase
-      .from('product_specs')
-      .select('id, product_id, spec, price, cat_no')
-      .in('id', specIds);
-
-    const productsBy = (products || []).reduce((acc, p) => { acc[p.id] = p; return acc; }, {});
-    const specsBy = (specs || []).reduce((acc, s) => { acc[s.id] = s; return acc; }, {});
+    const rows = await query(`
+      select i.id, i.product_id, i.product_spec_id, i.quantity, i.unit_cost, i.status, i.purchase_date,
+             i.created_at, p.name as product_name, ps.spec, ps.price as spec_price, ps.cat_no
+      from inventory i
+      left join products p on p.id = i.product_id
+      left join product_specs ps on ps.id = i.product_spec_id`);
 
     const list = rows.map((r) => {
-      const product = productsBy[r.product_id] || {};
-      const spec = specsBy[r.product_spec_id] || {};
-      const catalogPrice = toNumber(spec.price);
-      const price =
-        r.unit_cost != null && r.unit_cost !== '' ? toNumber(r.unit_cost) : catalogPrice;
+      const catalogPrice = toNumber(r.spec_price);
+      const price = r.unit_cost != null && r.unit_cost !== '' ? toNumber(r.unit_cost) : catalogPrice;
       return {
         id: r.id,
         product_id: r.product_id,
@@ -55,10 +45,10 @@ inventoryRouter.get('/', async (req, res) => {
         status: r.status || null,
         purchase_date: r.purchase_date,
         created_at: r.created_at,
-        product_name: product.name,
-        spec: spec.spec,
+        product_name: r.product_name,
+        spec: r.spec,
         price,
-        cat_no: spec.cat_no,
+        cat_no: r.cat_no,
         total: price * toNumber(r.quantity),
       };
     });
@@ -71,58 +61,37 @@ inventoryRouter.get('/', async (req, res) => {
 // PUT /inventory – update by id, or insert new purchase line when id omitted
 inventoryRouter.put('/', async (req, res) => {
   try {
-    const {
-      id,
-      product_id,
-      product_spec_id,
-      quantity,
-      purchase_date,
-      status,
-      unit_cost,
-    } = req.body;
+    const { id, product_id, product_spec_id, quantity, purchase_date, status, unit_cost } = req.body;
 
     if (id) {
-      const updates = { updated_at: new Date().toISOString() };
+      const sets = ['updated_at = now()'];
+      const params = [id];
+      const set = (column, value) => {
+        params.push(value);
+        sets.push(`${column} = $${params.length}`);
+      };
       if (quantity !== undefined) {
-        updates.quantity = Math.max(0, parseInt(quantity, 10) || 0);
+        set('quantity', Math.max(0, parseInt(quantity, 10) || 0));
       }
       if (purchase_date !== undefined) {
         if (purchase_date == null || String(purchase_date).trim() === '') {
-          updates.purchase_date = null;
+          set('purchase_date', null);
         } else {
           const d = new Date(purchase_date);
           if (!Number.isNaN(d.getTime())) {
-            updates.purchase_date = d.toISOString();
+            set('purchase_date', d.toISOString());
           }
         }
       }
       if (status !== undefined) {
-        if (status == null || String(status).trim() === '') {
-          updates.status = null;
-        } else {
-          const normalizedStatus = String(status).trim();
-          if (!ALLOWED_STATUSES.has(normalizedStatus)) {
-            return res.status(400).json({
-              error: 'status must be one of Delivered, Shipped, Processing, Scammed',
-            });
-          }
-          updates.status = normalizedStatus;
-        }
+        const parsed = parseStatus(status);
+        if (parsed.error) return res.status(400).json({ error: parsed.error });
+        set('status', parsed.value);
       }
       if (unit_cost !== undefined) {
-        if (unit_cost == null || String(unit_cost).trim() === '') {
-          updates.unit_cost = null;
-        } else {
-          updates.unit_cost = toNumber(unit_cost);
-        }
+        set('unit_cost', unit_cost == null || String(unit_cost).trim() === '' ? null : toNumber(unit_cost));
       }
-      const { data, error } = await supabase
-        .from('inventory')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .maybeSingle();
-      if (error) throw error;
+      const data = await queryOne(`update inventory set ${sets.join(', ')} where id = $1 returning *`, params);
       if (!data) return res.status(404).json({ error: 'Inventory row not found' });
       await recomputeOpenOrderReservations();
       return res.json(data);
@@ -140,47 +109,30 @@ inventoryRouter.put('/', async (req, res) => {
     if (unit_cost !== undefined && unit_cost !== null && String(unit_cost).trim() !== '') {
       resolvedCost = toNumber(unit_cost);
     } else {
-      const { data: specRow, error: specErr } = await supabase
-        .from('product_specs')
-        .select('price')
-        .eq('id', product_spec_id)
-        .maybeSingle();
-      if (specErr) throw specErr;
+      const specRow = await queryOne('select price from product_specs where id = $1', [product_spec_id]);
       resolvedCost = toNumber(specRow?.price);
     }
 
-    const row = {
-      product_id,
-      product_spec_id,
-      quantity: qty,
-      unit_cost: resolvedCost,
-      updated_at: new Date().toISOString(),
-    };
+    // New purchases should default to sellable stock unless explicitly set otherwise.
+    let rowStatus = 'Delivered';
     if (status !== undefined) {
-      if (status == null || String(status).trim() === '') {
-        row.status = null;
-      } else {
-        const normalizedStatus = String(status).trim();
-        if (!ALLOWED_STATUSES.has(normalizedStatus)) {
-          return res.status(400).json({
-            error: 'status must be one of Delivered, Shipped, Processing, Scammed',
-          });
-        }
-        row.status = normalizedStatus;
-      }
-    } else {
-      // New purchases should default to sellable stock unless explicitly set otherwise.
-      row.status = 'Delivered';
+      const parsed = parseStatus(status);
+      if (parsed.error) return res.status(400).json({ error: parsed.error });
+      rowStatus = parsed.value;
     }
+    let rowPurchaseDate = null;
     if (purchase_date) {
       const d = new Date(purchase_date);
       if (!Number.isNaN(d.getTime())) {
-        row.purchase_date = d.toISOString();
+        rowPurchaseDate = d.toISOString();
       }
     }
 
-    const { data, error } = await supabase.from('inventory').insert(row).select().single();
-    if (error) throw error;
+    const data = await queryOne(
+      `insert into inventory (product_id, product_spec_id, quantity, unit_cost, status, purchase_date, updated_at)
+       values ($1, $2, $3, $4, $5, $6, now()) returning *`,
+      [product_id, product_spec_id, qty, resolvedCost, rowStatus, rowPurchaseDate],
+    );
     await recomputeOpenOrderReservations();
     res.status(201).json(data);
   } catch (err) {
