@@ -10,7 +10,12 @@
   ],
   "redirects": [
     {
-      "source": "/admin/:path*",
+      "source": "/admin",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/admin/(.*)",
       "destination": "/",
       "permanent": false
     }
